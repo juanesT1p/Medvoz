@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Drug {
+  id              String   @id @default(uuid())
+  commercialName  String
+  activeIngredient String
+  normalizedName  String   @unique
+  synonyms        String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([activeIngredient])
+}
+
+model UsageEvent {
+  id        String   @id @default(uuid())
+  timestamp DateTime @default(now())
+  phase     String
+  success   Boolean
+  latencyMs Int
+
+  @@index([timestamp])
+}

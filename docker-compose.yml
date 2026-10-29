@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: medvoz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medvoz
+      POSTGRES_USER: medvoz
+      POSTGRES_PASSWORD: medvoz
+    ports:
+      - '5432:5432'
+    volumes:
+      - medvoz-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  medvoz-postgres-data:
