@@ -2,6 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
 import { MockProvider } from './providers/llm/mock.js';
+import { InMemoryDrugCatalog } from './providers/drugs/in-memory.js';
 
 describe('GET /health', () => {
   it('devuelve el estado y la configuración pública activa', async () => {
@@ -55,5 +56,37 @@ describe('POST /api/prescriptions/extract', () => {
 
     expect(response.status).toBe(415);
     expect(response.body.error.code).toBe('UNSUPPORTED_IMAGE_TYPE');
+  });
+});
+
+describe('POST /api/prescriptions/validate', () => {
+  const item = (name: string) => ({
+    id: '11111111-1111-4111-8111-111111111111',
+    rawText: name,
+    name,
+    activeIngredient: null,
+    strength: null,
+    form: null,
+    dose: null,
+    frequency: null,
+    duration: null,
+    route: null,
+    instructions: null,
+    confidence: 1,
+    legibility: 'clear',
+  });
+
+  it('devuelve el estado de validación de cada medicamento', async () => {
+    const response = await request(
+      createApp(
+        { CORS_ORIGIN: 'http://localhost:5173', LLM_PROVIDER: 'mock', LLM_MODEL: 'mock' },
+        { drugCatalog: new InMemoryDrugCatalog([{ commercialName: 'Acetaminofén', activeIngredient: 'acetaminofén', synonyms: ['paracetamol'] }]) },
+      ),
+    )
+      .post('/api/prescriptions/validate')
+      .send({ isPrescription: true, items: [item('paracetamol'), item('desconocido')], documentWarnings: [] });
+
+    expect(response.status).toBe(200);
+    expect(response.body.items.map((validatedItem: { match: { status: string } }) => validatedItem.match.status)).toEqual(['verified', 'not_found']);
   });
 });

@@ -8,13 +8,16 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm --filter @medvoz/shared build && pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm --filter @medvoz/shared build && pnpm -r test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "seed:catalog": "echo \"El seed del catálogo se implementará en la Fase 3.\"",
+    "seed:catalog": "pnpm --filter @medvoz/api seed:catalog",
     "llm:check": "pnpm --filter @medvoz/api llm:check"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

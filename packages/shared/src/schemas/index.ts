@@ -35,6 +35,26 @@ export type ExtractedItemDraft = z.infer<typeof ExtractedItemDraftSchema>;
 export type ExtractedPrescription = z.infer<typeof ExtractedPrescriptionSchema>;
 export type ExtractedPrescriptionDraft = z.infer<typeof ExtractedPrescriptionDraftSchema>;
 
+export const DrugMatchSchema = z.object({
+  status: z.enum(['verified', 'probable', 'not_found']),
+  canonicalName: z.string().trim().min(1).nullable(),
+  source: z.enum(['local_catalog', 'rxnorm', 'openfda']).nullable(),
+});
+
+export const ValidatedItemSchema = ExtractedItemSchema.extend({
+  match: DrugMatchSchema,
+});
+
+export const ValidatedPrescriptionSchema = z.object({
+  isPrescription: z.boolean(),
+  items: z.array(ValidatedItemSchema),
+  documentWarnings: z.array(z.string()),
+});
+
+export type DrugMatch = z.infer<typeof DrugMatchSchema>;
+export type ValidatedItem = z.infer<typeof ValidatedItemSchema>;
+export type ValidatedPrescription = z.infer<typeof ValidatedPrescriptionSchema>;
+
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),
   service: z.literal('api'),

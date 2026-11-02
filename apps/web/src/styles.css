@@ -49,6 +49,10 @@ h1 { max-width: 15ch; margin: 0.45rem 0 0; color: #15342f; font-size: clamp(2rem
 .review-label { margin-top: 0.25rem; color: #9a6500; font-size: 0.82rem; font-weight: 800; }
 .clear-label { margin-top: 0.25rem; color: #208071; font-size: 0.82rem; font-weight: 700; }
 .delete-button { color: #a43e3e; font-size: 0.87rem; }
+.validation-badge { margin: -0.35rem 0 0; padding: 0.65rem 0.75rem; border-radius: 0.55rem; font-size: 0.86rem; font-weight: 800; line-height: 1.4; }
+.validation-verified { color: #17624f; background: #eaf7f3; }
+.validation-probable { color: #72530b; background: #fff3cf; }
+.validation-not_found { color: #8c2e2e; background: #fff0f0; }
 .fields-grid { display: grid; gap: 0.9rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .fields-grid label { display: grid; gap: 0.35rem; color: #496961; font-size: 0.84rem; font-weight: 700; }
 .fields-grid input { width: 100%; min-height: 2.75rem; padding: 0.6rem 0.7rem; border: 1px solid #aacfc5; border-radius: 0.55rem; color: #173c35; background: #fff; }

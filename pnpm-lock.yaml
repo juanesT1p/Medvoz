@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@prisma/client':
+        specifier: ^6.1.0
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
     devDependencies:
       '@eslint/js':
         specifier: ^9.17.0
@@ -47,6 +51,9 @@ importers:
       '@medvoz/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@prisma/client':
+        specifier: ^6.1.0
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       cors:
         specifier: ^2.8.5
         version: 2.8.6
@@ -918,6 +925,18 @@ packages:
 
   '@paralleldrive/cuid2@2.3.1':
     resolution: {integrity: sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw==}
+
+  '@prisma/client@6.19.3':
+    resolution: {integrity: sha512-mKq3jQFhjvko5LTJFHGilsuQs+W+T3Gm451NzuTDGQxwCzwXHYnIu2zGkRoW+Exq3Rob7yp2MfzSrdIiZVhrBg==}
+    engines: {node: '>=18.18'}
+    peerDependencies:
+      prisma: '*'
+      typescript: '>=5.1.0'
+    peerDependenciesMeta:
+      prisma:
+        optional: true
+      typescript:
+        optional: true
 
   '@prisma/config@6.19.3':
     resolution: {integrity: sha512-CBPT44BjlQxEt8kiMEauji2WHTDoVBOKl7UlewXmUgBPnr/oPRZC3psci5chJnYmH0ivEIog2OU9PGWoki3DLQ==}
@@ -3149,6 +3168,11 @@ snapshots:
   '@paralleldrive/cuid2@2.3.1':
     dependencies:
       '@noble/hashes': 1.8.0
+
+  '@prisma/client@6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)':
+    optionalDependencies:
+      prisma: 6.19.3(typescript@5.9.3)
+      typescript: 5.9.3
 
   '@prisma/config@6.19.3':
     dependencies:

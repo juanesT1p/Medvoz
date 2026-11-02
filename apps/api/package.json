@@ -10,11 +10,13 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "llm:check": "tsx src/llm-check.ts"
+    "llm:check": "tsx src/llm-check.ts",
+    "seed:catalog": "tsx src/catalog/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
     "@google/genai": "^2.32.0",
+    "@prisma/client": "^6.1.0",
     "@medvoz/shared": "workspace:*",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

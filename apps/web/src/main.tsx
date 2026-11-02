@@ -1,8 +1,8 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ExtractedItem, ExtractedPrescription } from '@medvoz/shared';
-import { ApiError, extractPrescription } from './api/prescriptions.js';
+import type { ExtractedItem, ExtractedPrescription, ValidatedPrescription, ValidatedItem } from '@medvoz/shared';
+import { ApiError, extractPrescription, validatePrescription } from './api/prescriptions.js';
 import './styles.css';
 
 type Screen = 'capture' | 'confirm';
@@ -20,9 +20,11 @@ function App() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [prescription, setPrescription] = useState<ExtractedPrescription | null>(null);
+  const [validation, setValidation] = useState<ValidatedPrescription | null>(null);
   const [confirmedItems, setConfirmedItems] = useState<Set<string>>(new Set());
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,6 +38,7 @@ function App() {
     setError(null);
     setConfirmed(false);
     setPrescription(null);
+    setValidation(null);
     setFile(nextFile);
     setPreviewUrl((previousUrl) => {
       if (previousUrl) URL.revokeObjectURL(previousUrl);
@@ -48,6 +51,7 @@ function App() {
     setPreviewUrl(null);
     setFile(null);
     setPrescription(null);
+    setValidation(null);
     setError(null);
   };
 
@@ -59,6 +63,7 @@ function App() {
     try {
       const result = await extractPrescription(file);
       setPrescription(result);
+      setValidation(null);
       setConfirmedItems(new Set());
       if (!result.isPrescription) {
         setError('La imagen no parece una fórmula médica. Toma una foto más clara y vuelve a intentarlo.');
@@ -76,6 +81,7 @@ function App() {
   const reset = () => {
     setScreen('capture');
     setPrescription(null);
+    setValidation(null);
     setConfirmedItems(new Set());
     setConfirmed(false);
     setError(null);
@@ -89,6 +95,7 @@ function App() {
         items: current.items.map((item) => (item.id === itemId ? { ...item, [field]: value || null } : item)),
       };
     });
+    setValidation(null);
     setConfirmed(false);
   };
 
@@ -109,11 +116,13 @@ function App() {
       legibility: 'clear',
     };
     setPrescription((current) => (current ? { ...current, items: [...current.items, newItem] } : current));
+    setValidation(null);
     setConfirmed(false);
   };
 
   const deleteItem = (itemId: string) => {
     setPrescription((current) => (current ? { ...current, items: current.items.filter((item) => item.id !== itemId) } : current));
+    setValidation(null);
     setConfirmedItems((current) => {
       const next = new Set(current);
       next.delete(itemId);
@@ -130,6 +139,27 @@ function App() {
       return next;
     });
     setConfirmed(false);
+  };
+
+  const validate = async () => {
+    if (!prescription || !canConfirm) return;
+    setValidating(true);
+    setError(null);
+    try {
+      const result = await validatePrescription(prescription);
+      setValidation(result);
+      const hasUnverified = result.items.some((item) => item.match.status !== 'verified');
+      if (hasUnverified) {
+        setConfirmed(false);
+        setError('Revisa los medicamentos marcados como probables o no encontrados antes de continuar.');
+      } else {
+        setConfirmed(true);
+      }
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : 'No pudimos validar los medicamentos. Inténtalo de nuevo.');
+    } finally {
+      setValidating(false);
+    }
   };
 
   const needsReview = (item: ExtractedItem) => item.legibility !== 'clear' || item.confidence < 0.7;
@@ -151,15 +181,17 @@ function App() {
       ) : prescription ? (
         <ConfirmationScreen
           prescription={prescription}
+          validation={validation}
           confirmedItems={confirmedItems}
           confirmed={confirmed}
           error={error}
           canConfirm={canConfirm}
+          validating={validating}
           onUpdate={updateItem}
           onDelete={deleteItem}
           onAdd={addItem}
           onToggleConfirmation={toggleItemConfirmation}
-          onConfirm={() => setConfirmed(true)}
+          onConfirm={validate}
           onBack={reset}
         />
       ) : null}
@@ -222,10 +254,12 @@ function CaptureScreen({
 
 function ConfirmationScreen({
   prescription,
+  validation,
   confirmedItems,
   confirmed,
   error,
   canConfirm,
+  validating,
   onUpdate,
   onDelete,
   onAdd,
@@ -234,10 +268,12 @@ function ConfirmationScreen({
   onBack,
 }: {
   prescription: ExtractedPrescription;
+  validation: ValidatedPrescription | null;
   confirmedItems: Set<string>;
   confirmed: boolean;
   error: string | null;
   canConfirm: boolean;
+  validating: boolean;
   onUpdate: (itemId: string, field: EditableField, value: string) => void;
   onDelete: (itemId: string) => void;
   onAdd: () => void;
@@ -262,19 +298,20 @@ function ConfirmationScreen({
       ) : null}
       <div className="items-list" aria-label="Medicamentos detectados">
         {prescription.items.map((item, index) => (
-          <MedicationCard key={item.id} item={item} index={index} requiresReview={item.legibility !== 'clear' || item.confidence < 0.7} isConfirmed={confirmedItems.has(item.id)} onUpdate={onUpdate} onDelete={onDelete} onToggleConfirmation={onToggleConfirmation} />
+          <MedicationCard key={item.id} item={item} validation={validation?.items.find((validatedItem) => validatedItem.id === item.id)} index={index} requiresReview={item.legibility !== 'clear' || item.confidence < 0.7} isConfirmed={confirmedItems.has(item.id)} onUpdate={onUpdate} onDelete={onDelete} onToggleConfirmation={onToggleConfirmation} />
         ))}
       </div>
       <button className="add-item" type="button" onClick={onAdd}>＋ Agregar medicamento</button>
       {error ? <ErrorMessage message={error} /> : null}
       {confirmed ? <p className="success-message" role="status">Lista confirmada. Ya puedes continuar con la explicación.</p> : null}
-      <button className="button button-submit" type="button" disabled={!canConfirm || confirmed} onClick={onConfirm}>{confirmed ? 'Lista confirmada' : 'Confirmar y explicar'}</button>
+      <button className="button button-submit" type="button" disabled={!canConfirm || confirmed || validating} onClick={onConfirm}>{validating ? 'Validando medicamentos…' : confirmed ? 'Lista confirmada' : 'Confirmar y explicar'}</button>
     </section>
   );
 }
 
 function MedicationCard({
   item,
+  validation,
   index,
   requiresReview,
   isConfirmed,
@@ -283,6 +320,7 @@ function MedicationCard({
   onToggleConfirmation,
 }: {
   item: ExtractedItem;
+  validation: ValidatedItem | undefined;
   index: number;
   requiresReview: boolean;
   isConfirmed: boolean;
@@ -299,6 +337,7 @@ function MedicationCard({
         </div>
         <button className="delete-button" type="button" onClick={() => onDelete(item.id)} aria-label={`Eliminar medicamento ${index + 1}`}>Eliminar</button>
       </div>
+      {validation ? <ValidationBadge match={validation.match} /> : null}
       <div className="fields-grid">
         {editableFields.map(({ key, label, placeholder }) => (
           <label key={key}>
@@ -312,6 +351,15 @@ function MedicationCard({
       ) : null}
     </article>
   );
+}
+
+function ValidationBadge({ match }: { match: ValidatedItem['match'] }) {
+  const labels = {
+    verified: 'Verificado en el catálogo',
+    probable: `Coincidencia probable${match.canonicalName ? `: ${match.canonicalName}` : ''}. Revisa el nombre.`,
+    not_found: 'No encontrado. Confirma el nombre con un profesional.',
+  } as const;
+  return <p className={`validation-badge validation-${match.status}`} role={match.status === 'verified' ? undefined : 'alert'}>{labels[match.status]}</p>;
 }
 
 function ErrorMessage({ message }: { message: string }) {

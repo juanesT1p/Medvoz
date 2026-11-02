@@ -1,7 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import multer, { MulterError } from 'multer';
-import { HealthResponseSchema } from '@medvoz/shared';
+import { ExtractedPrescriptionSchema, HealthResponseSchema } from '@medvoz/shared';
 import type { Env } from './config/env.js';
 import { ExtractionService } from './services/extraction.service.js';
 import { createLlmProvider } from './providers/llm/factory.js';
@@ -9,15 +9,19 @@ import { LlmError } from './providers/llm/errors.js';
 import type { LlmProvider } from './providers/llm/types.js';
 import { HttpError } from './lib/http-error.js';
 import { isAcceptedImageType, normalizeImage } from './lib/image.js';
+import { DrugValidationService } from './services/drug-validation.service.js';
+import { InMemoryDrugCatalog } from './providers/drugs/in-memory.js';
+import type { DrugCatalog, DrugFallback } from './providers/drugs/types.js';
 
 type AppConfig = Pick<Env, 'CORS_ORIGIN' | 'LLM_PROVIDER' | 'LLM_MODEL'> &
   Partial<Pick<Env, 'MAX_IMAGE_MB' | 'LLM_EXTRACT_MODEL' | 'LLM_EXPLAIN_MODEL' | 'LLM_TIMEOUT_MS' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY'>>;
 
-export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmProvider } = {}) {
+export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmProvider; drugCatalog?: DrugCatalog; drugFallbacks?: DrugFallback[] } = {}) {
   const app = express();
   const maxImageMb = config.MAX_IMAGE_MB ?? 10;
   const llmProvider = dependencies.llmProvider ?? createDefaultProvider(config);
   const extractionService = new ExtractionService(llmProvider);
+  const drugValidationService = new DrugValidationService(dependencies.drugCatalog ?? new InMemoryDrugCatalog([]), dependencies.drugFallbacks ?? []);
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: Math.floor(maxImageMb * 1024 * 1024), files: 1 },
@@ -53,6 +57,19 @@ export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmPr
 
       const image = await normalizeImage(request.file);
       const result = await extractionService.extract(image);
+      response.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/prescriptions/validate', async (request, response, next) => {
+    try {
+      const parsed = ExtractedPrescriptionSchema.safeParse(request.body);
+      if (!parsed.success) {
+        throw new HttpError(400, 'INVALID_PRESCRIPTION', 'La lista de medicamentos no tiene un formato válido.');
+      }
+      const result = await drugValidationService.validate(parsed.data);
       response.status(200).json(result);
     } catch (error) {
       next(error);
