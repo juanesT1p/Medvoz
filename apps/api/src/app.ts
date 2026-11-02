@@ -13,17 +13,22 @@ import { DrugValidationService } from './services/drug-validation.service.js';
 import { InMemoryDrugCatalog } from './providers/drugs/in-memory.js';
 import type { DrugCatalog, DrugFallback } from './providers/drugs/types.js';
 import { ExplanationService } from './services/explanation.service.js';
+import { createTtsProvider } from './providers/tts/factory.js';
+import { TtsError } from './providers/tts/errors.js';
+import type { TtsProvider } from './providers/tts/types.js';
+import { TtsService } from './services/tts.service.js';
 
 type AppConfig = Pick<Env, 'CORS_ORIGIN' | 'LLM_PROVIDER' | 'LLM_MODEL'> &
-  Partial<Pick<Env, 'MAX_IMAGE_MB' | 'LLM_EXTRACT_MODEL' | 'LLM_EXPLAIN_MODEL' | 'LLM_TIMEOUT_MS' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY'>>;
+  Partial<Pick<Env, 'MAX_IMAGE_MB' | 'LLM_EXTRACT_MODEL' | 'LLM_EXPLAIN_MODEL' | 'LLM_TIMEOUT_MS' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY' | 'TTS_PROVIDER' | 'TTS_API_KEY'>>;
 
-export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmProvider; drugCatalog?: DrugCatalog; drugFallbacks?: DrugFallback[] } = {}) {
+export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmProvider; drugCatalog?: DrugCatalog; drugFallbacks?: DrugFallback[]; ttsProvider?: TtsProvider } = {}) {
   const app = express();
   const maxImageMb = config.MAX_IMAGE_MB ?? 10;
   const llmProvider = dependencies.llmProvider ?? createDefaultProvider(config);
   const extractionService = new ExtractionService(llmProvider);
   const drugValidationService = new DrugValidationService(dependencies.drugCatalog ?? new InMemoryDrugCatalog([]), dependencies.drugFallbacks ?? []);
   const explanationService = new ExplanationService(llmProvider);
+  const ttsService = new TtsService(dependencies.ttsProvider ?? createDefaultTtsProvider(config));
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: Math.floor(maxImageMb * 1024 * 1024), files: 1 },
@@ -91,6 +96,22 @@ export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmPr
     }
   });
 
+  app.post('/api/tts', async (request, response, next) => {
+    try {
+      const audioScript = request.body?.audioScript;
+      if (typeof audioScript !== 'string' || !audioScript.trim()) {
+        throw new HttpError(400, 'INVALID_AUDIO_SCRIPT', 'Debes enviar un guion de audio válido.');
+      }
+      if (audioScript.trim().split(/\s+/).length > 250) {
+        throw new HttpError(400, 'AUDIO_SCRIPT_TOO_LONG', 'El guion de audio no puede superar 250 palabras.');
+      }
+      const audio = await ttsService.synthesize(audioScript);
+      response.status(200).type('audio/mpeg').set('Cache-Control', 'no-store').set('Content-Length', String(audio.length)).send(audio);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
     const normalized = normalizeHttpError(error);
     response.status(normalized.statusCode).json({ error: { code: normalized.code, message: normalized.message } });
@@ -111,6 +132,14 @@ function createDefaultProvider(config: AppConfig): LlmProvider {
   });
 }
 
+function createDefaultTtsProvider(config: AppConfig): TtsProvider {
+  return createTtsProvider({
+    TTS_PROVIDER: config.TTS_PROVIDER ?? 'browser',
+    TTS_API_KEY: config.TTS_API_KEY,
+    LLM_TIMEOUT_MS: config.LLM_TIMEOUT_MS ?? 30_000,
+  });
+}
+
 function normalizeHttpError(error: unknown): { statusCode: number; code: string; message: string } {
   if (error instanceof HttpError) return error;
 
@@ -128,6 +157,17 @@ function normalizeHttpError(error: unknown): { statusCode: number; code: string;
       LLM_RATE_LIMIT: 'El proveedor de IA está temporalmente limitado. Inténtalo de nuevo.',
       LLM_TIMEOUT: 'La lectura tardó demasiado. Inténtalo de nuevo.',
       LLM_INVALID_OUTPUT: 'El proveedor de IA no devolvió una lectura válida.',
+    } as const;
+    return { statusCode: statusByCode[error.code], code: error.code, message: messages[error.code] };
+  }
+
+  if (error instanceof TtsError) {
+    const statusByCode = { TTS_AUTH: 502, TTS_TIMEOUT: 504, TTS_UNAVAILABLE: 503, TTS_INVALID_OUTPUT: 502 } as const;
+    const messages = {
+      TTS_AUTH: 'No se pudo autenticar con el proveedor de audio.',
+      TTS_TIMEOUT: 'La generación de audio tardó demasiado.',
+      TTS_UNAVAILABLE: 'No se pudo generar audio. Puedes usar la voz del navegador.',
+      TTS_INVALID_OUTPUT: 'El guion de audio no es válido.',
     } as const;
     return { statusCode: statusByCode[error.code], code: error.code, message: messages[error.code] };
   }

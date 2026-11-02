@@ -5,10 +5,12 @@ import { PrismaDrugCatalog } from './providers/drugs/prisma-catalog.js';
 import { OpenFdaClient } from './providers/drugs/openfda.js';
 import { RxNormClient } from './providers/drugs/rxnorm.js';
 import { createLlmProvider } from './providers/llm/factory.js';
+import { createTtsProvider } from './providers/tts/factory.js';
 
 const prisma = new PrismaClient();
 const app = createApp(env, {
   llmProvider: createLlmProvider(env),
+  ttsProvider: createTtsProvider(env),
   drugCatalog: new PrismaDrugCatalog(prisma),
   drugFallbacks: [new RxNormClient(), new OpenFdaClient()],
 });

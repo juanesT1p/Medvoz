@@ -70,6 +70,17 @@ h1 { max-width: 15ch; margin: 0.45rem 0 0; color: #15342f; font-size: clamp(2rem
 .explanation-item h3 { color: #205f53; font-size: 1rem; }
 .explanation-item p, .audio-script { color: #3f6059; font-size: 0.92rem; }
 .disclaimer { padding: 0.8rem; border-radius: 0.6rem; color: #6f4d0b; background: #fff3cf; font-size: 0.86rem; font-weight: 700; }
+.audio-player { display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid #b9ddd3; border-radius: 0.85rem; background: #fff; }
+.audio-player h3 { margin: 0; color: #205f53; font-size: 1rem; }
+.audio-controls { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.audio-button { min-height: 2.7rem; padding: 0.55rem 0.85rem; }
+.speed-control, .repeat-control { display: inline-flex; gap: 0.4rem; align-items: center; color: #496961; font-size: 0.86rem; font-weight: 700; }
+.speed-control select { min-height: 2.3rem; padding: 0.3rem; border: 1px solid #aacfc5; border-radius: 0.45rem; background: #fff; }
+.repeat-control input { width: 1.15rem; height: 1.15rem; accent-color: #087f73; }
+.audio-player audio { width: 100%; }
+.audio-status { margin: 0; color: #72530b; font-size: 0.86rem; font-weight: 700; }
+.sync-text { margin: 0; padding: 0.75rem; border-radius: 0.55rem; color: #54736b; background: #f3fbf8; font-size: 0.92rem; line-height: 1.6; }
+.sync-text .word-active { color: #087f73; font-weight: 800; }
 @media (max-width: 520px) {
   .shell { width: min(100% - 1rem, 48rem); padding-top: 1rem; }
   .panel { padding: 1.1rem; border-radius: 1rem; }

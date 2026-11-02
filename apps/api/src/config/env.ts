@@ -15,7 +15,7 @@ const rawEnvSchema = z.object({
   GEMINI_API_KEY: z.string().trim().optional(),
   ANTHROPIC_API_KEY: z.string().trim().optional(),
   DATABASE_URL: z.string().url(),
-  TTS_PROVIDER: z.string().trim().min(1),
+  TTS_PROVIDER: z.enum(['browser', 'openai', 'mock']),
   TTS_API_KEY: z.string().trim().optional(),
   PORT: z.coerce.number().int().min(1).max(65_535),
   CORS_ORIGIN: z.string().url(),
@@ -29,6 +29,10 @@ export const envSchema = rawEnvSchema.superRefine((env, context) => {
 
   if (env.LLM_PROVIDER === 'anthropic' && !env.ANTHROPIC_API_KEY) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['ANTHROPIC_API_KEY'], message: 'Es obligatoria cuando LLM_PROVIDER=anthropic.' });
+  }
+
+  if (env.TTS_PROVIDER === 'openai' && !env.TTS_API_KEY) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['TTS_API_KEY'], message: 'Es obligatoria cuando TTS_PROVIDER=openai.' });
   }
 });
 

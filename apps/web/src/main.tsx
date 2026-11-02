@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Explanation, ExtractedItem, ExtractedPrescription, ValidatedPrescription, ValidatedItem } from '@medvoz/shared';
-import { ApiError, explainPrescription, extractPrescription, validatePrescription } from './api/prescriptions.js';
+import { ApiError, explainPrescription, extractPrescription, synthesizeSpeech, validatePrescription } from './api/prescriptions.js';
 import './styles.css';
 
 type Screen = 'capture' | 'confirm';
@@ -337,8 +337,125 @@ function ExplanationView({ explanation }: { explanation: Explanation }) {
         </article>
       ))}
       <p className="audio-script"><strong>Guion:</strong> {explanation.audioScript}</p>
-      <p className="disclaimer">{explanation.disclaimer}</p>
+      <AudioPlayer audioScript={explanation.audioScript} disclaimer={explanation.disclaimer} />
     </section>
+  );
+}
+
+function AudioPlayer({ audioScript, disclaimer }: { audioScript: string; disclaimer: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [fallback, setFallback] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [repeat, setRepeat] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const words = audioScript.split(/\s+/).filter(Boolean);
+  const currentWordIndex = duration > 0 ? Math.min(words.length - 1, Math.floor((currentTime / duration) * words.length)) : -1;
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      window.speechSynthesis?.cancel();
+    };
+  }, [audioUrl]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = speed;
+  }, [audioUrl, speed]);
+
+  const speakInBrowser = () => {
+    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+      setError('Este navegador no tiene voz disponible.');
+      setPlaying(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(audioScript);
+    utterance.lang = 'es-CO';
+    utterance.rate = speed;
+    utterance.onend = () => {
+      if (repeat) speakInBrowser();
+      else setPlaying(false);
+    };
+    utterance.onerror = () => {
+      setPlaying(false);
+      setError('No se pudo reproducir la voz del navegador.');
+    };
+    window.speechSynthesis.speak(utterance);
+    setFallback(true);
+    setPlaying(true);
+    setError(null);
+  };
+
+  const generateAudio = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const blob = await synthesizeSpeech(audioScript);
+      setAudioUrl(URL.createObjectURL(blob));
+      setFallback(false);
+      setPlaying(false);
+    } catch {
+      speakInBrowser();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const togglePlayback = () => {
+    if (fallback) {
+      if (playing) window.speechSynthesis.pause();
+      else if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      else speakInBrowser();
+      setPlaying((current) => !current);
+      return;
+    }
+    if (!audioUrl) {
+      void generateAudio();
+      return;
+    }
+    if (!audioRef.current) return;
+    if (audioRef.current.paused) void audioRef.current.play();
+    else audioRef.current.pause();
+  };
+
+  const resetAudio = () => {
+    if (fallback) {
+      window.speechSynthesis.cancel();
+      speakInBrowser();
+    } else if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      void audioRef.current.play();
+    }
+  };
+
+  return (
+    <div className="audio-player" aria-labelledby="audio-title">
+      <h3 id="audio-title">Escucha la explicación</h3>
+      <div className="audio-controls">
+        <button className="button button-primary audio-button" type="button" onClick={togglePlayback} disabled={loading}>
+          {loading ? 'Preparando audio…' : playing ? 'Pausar' : 'Reproducir'}
+        </button>
+        <button className="text-button" type="button" onClick={resetAudio} disabled={loading || (!audioUrl && !fallback)}>Repetir</button>
+        <label className="speed-control">Velocidad
+          <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
+            <option value="0.75">0.75×</option>
+            <option value="1">1×</option>
+            <option value="1.25">1.25×</option>
+          </select>
+        </label>
+        <label className="repeat-control"><input type="checkbox" checked={repeat} onChange={(event) => setRepeat(event.target.checked)} /> Repetir</label>
+      </div>
+      {audioUrl ? <audio ref={audioRef} src={audioUrl} controls onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onEnded={() => { if (repeat) resetAudio(); else setPlaying(false); }} /> : null}
+      {fallback ? <p className="audio-status" role="status">Audio cloud no disponible; usando la voz de tu navegador.</p> : null}
+      {error ? <ErrorMessage message={error} /> : null}
+      <p className="sync-text" aria-live="off">{words.map((word, index) => <span className={index <= currentWordIndex ? 'word-active' : ''} key={`${word}-${index}`}>{word} </span>)}</p>
+      <p className="disclaimer">{disclaimer}</p>
+    </div>
   );
 }
 

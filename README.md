@@ -38,6 +38,8 @@ Después de confirmar la lista, `POST /api/prescriptions/validate` consulta prim
 
 Con una lista validada, `POST /api/prescriptions/explain` genera `Explanation` en JSON. El disclaimer lo agrega el backend de forma fija y el guion usa únicamente las indicaciones presentes en la fórmula.
 
+El audio se solicita con `POST /api/tts` enviando `{ "audioScript": "..." }`. `TTS_PROVIDER=openai` usa el endpoint cloud y `TTS_PROVIDER=browser` deja que el frontend active `speechSynthesis` como fallback; las claves permanecen en el backend.
+
 Para comprobar las credenciales y que el modelo admite texto e imagen:
 
 ```bash
@@ -65,5 +67,6 @@ El catálogo inicial está en [`data/drugs.csv`](data/drugs.csv). El script acep
 - `apps/api/src/services/extraction.service.ts`: extracción validada con Zod y UUID generados en backend.
 - `apps/api/src/services/drug-validation.service.ts`: validación local con respaldo externo tolerante a fallos.
 - `apps/api/src/services/explanation.service.ts`: explicación estructurada con protección contra datos inventados y prompt injection.
+- `apps/api/src/providers/tts`: proveedor OpenAI configurable, mock y fallback de navegador.
 
 Las claves de proveedores viven únicamente en el backend y se configuran mediante `.env`; no se registran ni se envían al frontend. La imagen y el texto de la fórmula se procesan en memoria y no se incluyen en logs.

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
 import { MockProvider } from './providers/llm/mock.js';
 import { InMemoryDrugCatalog } from './providers/drugs/in-memory.js';
+import { MockTtsProvider } from './providers/tts/mock.js';
 
 describe('GET /health', () => {
   it('devuelve el estado y la configuración pública activa', async () => {
@@ -134,5 +135,34 @@ describe('POST /api/prescriptions/explain', () => {
     expect(response.body.disclaimer).toContain('no reemplaza');
     expect(response.body.items[0].howToTakeAsPrescribed).not.toContain('50');
     expect(response.body.audioScript).not.toContain('50 tabletas');
+  });
+});
+
+describe('POST /api/tts', () => {
+  it('devuelve audio MPEG sin exponer la clave del proveedor', async () => {
+    const response = await request(
+      createApp(
+        { CORS_ORIGIN: 'http://localhost:5173', LLM_PROVIDER: 'mock', LLM_MODEL: 'mock' },
+        { ttsProvider: new MockTtsProvider() },
+      ),
+    )
+      .post('/api/tts')
+      .send({ audioScript: 'Esta es una prueba de audio.' });
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toMatch(/^audio\/mpeg/);
+    expect(response.body).toBeInstanceOf(Buffer);
+    expect(response.body.toString('ascii', 0, 3)).toBe('ID3');
+  });
+
+  it('rechaza guiones demasiado largos', async () => {
+    const response = await request(
+      createApp({ CORS_ORIGIN: 'http://localhost:5173', LLM_PROVIDER: 'mock', LLM_MODEL: 'mock' }, { ttsProvider: new MockTtsProvider() }),
+    )
+      .post('/api/tts')
+      .send({ audioScript: Array.from({ length: 251 }, () => 'palabra').join(' ') });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('AUDIO_SCRIPT_TOO_LONG');
   });
 });

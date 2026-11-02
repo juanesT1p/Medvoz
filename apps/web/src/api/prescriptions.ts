@@ -83,3 +83,21 @@ export async function explainPrescription(prescription: ValidatedPrescription): 
   }
   return ExplanationSchema.parse(payload);
 }
+
+export async function synthesizeSpeech(audioScript: string): Promise<Blob> {
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl}/api/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audioScript }),
+    });
+  } catch {
+    throw new ApiError('NETWORK_ERROR', 'No pudimos conectarnos con el audio.');
+  }
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+    throw new ApiError(payload?.error?.code ?? 'TTS_ERROR', payload?.error?.message ?? 'No se pudo generar el audio.');
+  }
+  return response.blob();
+}
