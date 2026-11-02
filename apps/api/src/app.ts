@@ -1,6 +1,10 @@
 import cors from 'cors';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import multer, { MulterError } from 'multer';
+import pino from 'pino';
+import { randomUUID } from 'node:crypto';
 import { ExtractedPrescriptionSchema, HealthResponseSchema, ValidatedPrescriptionSchema } from '@medvoz/shared';
 import type { Env } from './config/env.js';
 import { ExtractionService } from './services/extraction.service.js';
@@ -20,9 +24,11 @@ import { TtsService } from './services/tts.service.js';
 
 type AppConfig = Pick<Env, 'CORS_ORIGIN' | 'LLM_PROVIDER' | 'LLM_MODEL'> &
   Partial<Pick<Env, 'MAX_IMAGE_MB' | 'LLM_EXTRACT_MODEL' | 'LLM_EXPLAIN_MODEL' | 'LLM_TIMEOUT_MS' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY' | 'TTS_PROVIDER' | 'TTS_API_KEY'>>;
+type UsageEventRecorder = (event: { phase: string; success: boolean; latencyMs: number }) => Promise<void>;
 
-export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmProvider; drugCatalog?: DrugCatalog; drugFallbacks?: DrugFallback[]; ttsProvider?: TtsProvider } = {}) {
+export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmProvider; drugCatalog?: DrugCatalog; drugFallbacks?: DrugFallback[]; ttsProvider?: TtsProvider; usageEventRecorder?: UsageEventRecorder } = {}) {
   const app = express();
+  const logger = pino({ level: process.env.NODE_ENV === 'test' ? 'silent' : 'info', base: null });
   const maxImageMb = config.MAX_IMAGE_MB ?? 10;
   const llmProvider = dependencies.llmProvider ?? createDefaultProvider(config);
   const extractionService = new ExtractionService(llmProvider);
@@ -42,8 +48,31 @@ export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmPr
   });
 
   app.disable('x-powered-by');
+  app.use(helmet());
   app.use(cors({ origin: config.CORS_ORIGIN }));
+  app.use('/api', rateLimit({
+    windowMs: 15 * 60 * 1_000,
+    limit: 100,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    handler: (_request, response) => response.status(429).json({ error: { code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Inténtalo más tarde.' } }),
+  }));
   app.use(express.json({ limit: '1mb' }));
+  app.use((request, response, next) => {
+    const requestId = randomUUID();
+    const startedAt = performance.now();
+    response.locals.requestId = requestId;
+    response.setHeader('X-Request-Id', requestId);
+    response.on('finish', () => {
+      const phase = phaseForPath(request.path);
+      const latencyMs = Math.round(performance.now() - startedAt);
+      logger.info({ requestId, method: request.method, path: request.path, statusCode: response.statusCode, latencyMs }, 'request');
+      if (phase && dependencies.usageEventRecorder) {
+        void dependencies.usageEventRecorder({ phase, success: response.statusCode < 400, latencyMs }).catch(() => undefined);
+      }
+    });
+    next();
+  });
 
   app.get('/health', (_request, response) => {
     const payload = HealthResponseSchema.parse({
@@ -118,6 +147,14 @@ export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmPr
   });
 
   return app;
+}
+
+function phaseForPath(path: string): string | null {
+  if (path.endsWith('/extract')) return 'extract';
+  if (path.endsWith('/validate')) return 'validate';
+  if (path.endsWith('/explain')) return 'explain';
+  if (path === '/api/tts') return 'tts';
+  return null;
 }
 
 function createDefaultProvider(config: AppConfig): LlmProvider {

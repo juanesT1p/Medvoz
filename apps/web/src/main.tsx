@@ -26,6 +26,7 @@ function App() {
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -187,7 +188,7 @@ function App() {
       </header>
 
       {screen === 'capture' ? (
-        <CaptureScreen file={file} previewUrl={previewUrl} loading={loading} error={error} onChooseFile={chooseFile} onClearFile={clearFile} onExtract={extract} />
+        <CaptureScreen file={file} previewUrl={previewUrl} loading={loading} error={error} consentGiven={consentGiven} onConsentChange={setConsentGiven} onChooseFile={chooseFile} onClearFile={clearFile} onExtract={extract} />
       ) : prescription ? (
         <ConfirmationScreen
           prescription={prescription}
@@ -215,6 +216,8 @@ function CaptureScreen({
   previewUrl,
   loading,
   error,
+  consentGiven,
+  onConsentChange,
   onChooseFile,
   onClearFile,
   onExtract,
@@ -223,6 +226,8 @@ function CaptureScreen({
   previewUrl: string | null;
   loading: boolean;
   error: string | null;
+  consentGiven: boolean;
+  onConsentChange: (value: boolean) => void;
   onChooseFile: (file: File | undefined) => void;
   onClearFile: () => void;
   onExtract: () => void;
@@ -242,6 +247,10 @@ function CaptureScreen({
         <span aria-hidden="true">⌁</span>
         <p>La imagen se procesa para esta lectura y no se guarda en tu dispositivo.</p>
       </div>
+      <label className="consent-check">
+        <input type="checkbox" checked={consentGiven} onChange={(event) => onConsentChange(event.target.checked)} />
+        <span>Acepto que la imagen y el texto se procesen temporalmente con un proveedor externo de inteligencia artificial para esta demostración académica.</span>
+      </label>
       {previewUrl ? (
         <div className="preview-wrap">
           <img src={previewUrl} alt="Vista previa de la fórmula seleccionada" className="prescription-preview" />
@@ -253,9 +262,9 @@ function CaptureScreen({
       <div className="action-stack">
         <input ref={cameraInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/heic" capture="environment" onChange={handleChange} />
         <input ref={uploadInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/heic" onChange={handleChange} />
-        <button className="button button-primary" type="button" onClick={() => cameraInput.current?.click()}>Tomar foto</button>
-        <button className="button button-secondary" type="button" onClick={() => uploadInput.current?.click()}>Subir imagen</button>
-        <button className="button button-submit" type="button" disabled={!file || loading} onClick={onExtract}>{loading ? 'Leyendo fórmula…' : 'Leer fórmula'}</button>
+        <button className="button button-primary" type="button" disabled={!consentGiven} onClick={() => cameraInput.current?.click()}>Tomar foto</button>
+        <button className="button button-secondary" type="button" disabled={!consentGiven} onClick={() => uploadInput.current?.click()}>Subir imagen</button>
+        <button className="button button-submit" type="button" disabled={!file || loading || !consentGiven} onClick={onExtract}>{loading ? 'Leyendo fórmula…' : 'Leer fórmula'}</button>
       </div>
       {error ? <ErrorMessage message={error} /> : null}
       <p className="helper-text">Acepta JPEG, PNG, WebP o HEIC. Procura que toda la fórmula quede enfocada y visible.</p>

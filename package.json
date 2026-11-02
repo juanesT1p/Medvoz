@@ -14,7 +14,8 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "seed:catalog": "pnpm --filter @medvoz/api seed:catalog",
-    "llm:check": "pnpm --filter @medvoz/api llm:check"
+    "llm:check": "pnpm --filter @medvoz/api llm:check",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0"
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/node": "^22.10.5",
+    "@playwright/test": "^1.52.0",
     "concurrently": "^9.1.2",
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",

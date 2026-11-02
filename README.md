@@ -40,10 +40,18 @@ Con una lista validada, `POST /api/prescriptions/explain` genera `Explanation` e
 
 El audio se solicita con `POST /api/tts` enviando `{ "audioScript": "..." }`. `TTS_PROVIDER=openai` usa el endpoint cloud y `TTS_PROVIDER=browser` deja que el frontend active `speechSynthesis` como fallback; las claves permanecen en el backend.
 
+Antes de tomar o subir una foto, la interfaz solicita consentimiento para procesar temporalmente la imagen con IA externa durante la demostración. El consentimiento y toda la fórmula viven solo en memoria de la sesión; no se usa `localStorage`.
+
 Para comprobar las credenciales y que el modelo admite texto e imagen:
 
 ```bash
 pnpm llm:check
+```
+
+El e2e básico usa Playwright con el backend mockeado:
+
+```bash
+pnpm e2e
 ```
 
 Para levantar la base de datos local:
@@ -68,5 +76,6 @@ El catálogo inicial está en [`data/drugs.csv`](data/drugs.csv). El script acep
 - `apps/api/src/services/drug-validation.service.ts`: validación local con respaldo externo tolerante a fallos.
 - `apps/api/src/services/explanation.service.ts`: explicación estructurada con protección contra datos inventados y prompt injection.
 - `apps/api/src/providers/tts`: proveedor OpenAI configurable, mock y fallback de navegador.
+- `e2e`: recorrido de demostración con backend mockeado.
 
 Las claves de proveedores viven únicamente en el backend y se configuran mediante `.env`; no se registran ni se envían al frontend. La imagen y el texto de la fórmula se procesan en memoria y no se incluyen en logs.

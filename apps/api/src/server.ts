@@ -13,6 +13,9 @@ const app = createApp(env, {
   ttsProvider: createTtsProvider(env),
   drugCatalog: new PrismaDrugCatalog(prisma),
   drugFallbacks: [new RxNormClient(), new OpenFdaClient()],
+  usageEventRecorder: async (event) => {
+    await prisma.usageEvent.create({ data: event });
+  },
 });
 
 app.listen(env.PORT, () => {
