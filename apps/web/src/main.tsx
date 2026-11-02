@@ -1,8 +1,8 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ExtractedItem, ExtractedPrescription, ValidatedPrescription, ValidatedItem } from '@medvoz/shared';
-import { ApiError, extractPrescription, validatePrescription } from './api/prescriptions.js';
+import type { Explanation, ExtractedItem, ExtractedPrescription, ValidatedPrescription, ValidatedItem } from '@medvoz/shared';
+import { ApiError, explainPrescription, extractPrescription, validatePrescription } from './api/prescriptions.js';
 import './styles.css';
 
 type Screen = 'capture' | 'confirm';
@@ -21,6 +21,7 @@ function App() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [prescription, setPrescription] = useState<ExtractedPrescription | null>(null);
   const [validation, setValidation] = useState<ValidatedPrescription | null>(null);
+  const [explanation, setExplanation] = useState<Explanation | null>(null);
   const [confirmedItems, setConfirmedItems] = useState<Set<string>>(new Set());
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,6 +40,7 @@ function App() {
     setConfirmed(false);
     setPrescription(null);
     setValidation(null);
+    setExplanation(null);
     setFile(nextFile);
     setPreviewUrl((previousUrl) => {
       if (previousUrl) URL.revokeObjectURL(previousUrl);
@@ -52,6 +54,7 @@ function App() {
     setFile(null);
     setPrescription(null);
     setValidation(null);
+    setExplanation(null);
     setError(null);
   };
 
@@ -64,6 +67,7 @@ function App() {
       const result = await extractPrescription(file);
       setPrescription(result);
       setValidation(null);
+      setExplanation(null);
       setConfirmedItems(new Set());
       if (!result.isPrescription) {
         setError('La imagen no parece una fórmula médica. Toma una foto más clara y vuelve a intentarlo.');
@@ -82,6 +86,7 @@ function App() {
     setScreen('capture');
     setPrescription(null);
     setValidation(null);
+    setExplanation(null);
     setConfirmedItems(new Set());
     setConfirmed(false);
     setError(null);
@@ -96,6 +101,7 @@ function App() {
       };
     });
     setValidation(null);
+    setExplanation(null);
     setConfirmed(false);
   };
 
@@ -117,12 +123,14 @@ function App() {
     };
     setPrescription((current) => (current ? { ...current, items: [...current.items, newItem] } : current));
     setValidation(null);
+    setExplanation(null);
     setConfirmed(false);
   };
 
   const deleteItem = (itemId: string) => {
     setPrescription((current) => (current ? { ...current, items: current.items.filter((item) => item.id !== itemId) } : current));
     setValidation(null);
+    setExplanation(null);
     setConfirmedItems((current) => {
       const next = new Set(current);
       next.delete(itemId);
@@ -153,6 +161,8 @@ function App() {
         setConfirmed(false);
         setError('Revisa los medicamentos marcados como probables o no encontrados antes de continuar.');
       } else {
+        const generatedExplanation = await explainPrescription(result);
+        setExplanation(generatedExplanation);
         setConfirmed(true);
       }
     } catch (requestError) {
@@ -182,6 +192,7 @@ function App() {
         <ConfirmationScreen
           prescription={prescription}
           validation={validation}
+          explanation={explanation}
           confirmedItems={confirmedItems}
           confirmed={confirmed}
           error={error}
@@ -255,6 +266,7 @@ function CaptureScreen({
 function ConfirmationScreen({
   prescription,
   validation,
+  explanation,
   confirmedItems,
   confirmed,
   error,
@@ -269,6 +281,7 @@ function ConfirmationScreen({
 }: {
   prescription: ExtractedPrescription;
   validation: ValidatedPrescription | null;
+  explanation: Explanation | null;
   confirmedItems: Set<string>;
   confirmed: boolean;
   error: string | null;
@@ -304,7 +317,27 @@ function ConfirmationScreen({
       <button className="add-item" type="button" onClick={onAdd}>＋ Agregar medicamento</button>
       {error ? <ErrorMessage message={error} /> : null}
       {confirmed ? <p className="success-message" role="status">Lista confirmada. Ya puedes continuar con la explicación.</p> : null}
+      {explanation ? <ExplanationView explanation={explanation} /> : null}
       <button className="button button-submit" type="button" disabled={!canConfirm || confirmed || validating} onClick={onConfirm}>{validating ? 'Validando medicamentos…' : confirmed ? 'Lista confirmada' : 'Confirmar y explicar'}</button>
+    </section>
+  );
+}
+
+function ExplanationView({ explanation }: { explanation: Explanation }) {
+  return (
+    <section className="explanation-box" aria-labelledby="explanation-title">
+      <p className="eyebrow">Explicación</p>
+      <h2 id="explanation-title">Esto es lo que dice tu fórmula</h2>
+      {explanation.items.map((item) => (
+        <article className="explanation-item" key={item.itemId}>
+          <h3>{item.purpose}</h3>
+          <p><strong>Cómo usarlo según la fórmula:</strong> {item.howToTakeAsPrescribed}</p>
+          <p><strong>Ten en cuenta:</strong> {item.commonWarnings.join(' ')}</p>
+          <p><strong>Consulta si:</strong> {item.askDoctorIf.join(' ')}</p>
+        </article>
+      ))}
+      <p className="audio-script"><strong>Guion:</strong> {explanation.audioScript}</p>
+      <p className="disclaimer">{explanation.disclaimer}</p>
     </section>
   );
 }

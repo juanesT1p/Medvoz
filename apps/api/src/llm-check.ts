@@ -1,4 +1,4 @@
-import { ExtractedPrescriptionDraftSchema } from '@medvoz/shared';
+import { ExplanationDraftSchema, ExtractedPrescriptionDraftSchema } from '@medvoz/shared';
 import { env } from './config/env.js';
 import { createLlmProvider } from './providers/llm/factory.js';
 
@@ -9,7 +9,7 @@ await provider.generateStructured({
   task: 'explain',
   system: 'Devuelve una fórmula vacía válida en JSON. Esta es una prueba de conectividad.',
   userText: 'Prueba de texto. Responde con isPrescription=false, items=[] y documentWarnings=[].',
-  schema: ExtractedPrescriptionDraftSchema,
+  schema: ExplanationDraftSchema,
   maxOutputTokens: 16,
 });
 

@@ -55,6 +55,27 @@ export type DrugMatch = z.infer<typeof DrugMatchSchema>;
 export type ValidatedItem = z.infer<typeof ValidatedItemSchema>;
 export type ValidatedPrescription = z.infer<typeof ValidatedPrescriptionSchema>;
 
+export const ExplanationItemSchema = z.object({
+  itemId: z.string().uuid(),
+  purpose: z.string().trim().min(1),
+  howToTakeAsPrescribed: z.string().trim().min(1),
+  commonWarnings: z.array(z.string().trim().min(1)),
+  askDoctorIf: z.array(z.string().trim().min(1)).min(1),
+});
+
+export const ExplanationDraftSchema = z.object({
+  items: z.array(ExplanationItemSchema),
+  audioScript: z.string().trim().min(1),
+});
+
+export const ExplanationSchema = ExplanationDraftSchema.extend({
+  disclaimer: z.string().trim().min(1),
+});
+
+export type ExplanationItem = z.infer<typeof ExplanationItemSchema>;
+export type ExplanationDraft = z.infer<typeof ExplanationDraftSchema>;
+export type Explanation = z.infer<typeof ExplanationSchema>;
+
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),
   service: z.literal('api'),

@@ -90,3 +90,49 @@ describe('POST /api/prescriptions/validate', () => {
     expect(response.body.items.map((validatedItem: { match: { status: string } }) => validatedItem.match.status)).toEqual(['verified', 'not_found']);
   });
 });
+
+describe('POST /api/prescriptions/explain', () => {
+  it('devuelve una explicación estructurada con disclaimer fijo', async () => {
+    const provider = new MockProvider([JSON.stringify({
+      items: [{
+        itemId: '11111111-1111-4111-8111-111111111111',
+        purpose: 'Se usa para aliviar molestias.',
+        howToTakeAsPrescribed: 'Toma 50 tabletas.',
+        commonWarnings: ['Consulta si tienes dudas.'],
+        askDoctorIf: ['Consulta si algo no coincide.'],
+      }],
+      audioScript: 'Toma 50 tabletas.',
+    })]);
+    const response = await request(
+      createApp({ CORS_ORIGIN: 'http://localhost:5173', LLM_PROVIDER: 'mock', LLM_MODEL: 'mock' }, { llmProvider: provider }),
+    )
+      .post('/api/prescriptions/explain')
+      .send({
+        prescription: {
+          isPrescription: true,
+          items: [{
+            id: '11111111-1111-4111-8111-111111111111',
+            rawText: 'Acetaminofen',
+            name: 'Acetaminofén',
+            activeIngredient: 'acetaminofén',
+            strength: null,
+            form: null,
+            dose: null,
+            frequency: null,
+            duration: null,
+            route: 'oral',
+            instructions: null,
+            confidence: 1,
+            legibility: 'clear',
+            match: { status: 'verified', canonicalName: 'Acetaminofén', source: 'local_catalog' },
+          }],
+          documentWarnings: [],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.disclaimer).toContain('no reemplaza');
+    expect(response.body.items[0].howToTakeAsPrescribed).not.toContain('50');
+    expect(response.body.audioScript).not.toContain('50 tabletas');
+  });
+});

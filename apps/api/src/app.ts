@@ -1,7 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import multer, { MulterError } from 'multer';
-import { ExtractedPrescriptionSchema, HealthResponseSchema } from '@medvoz/shared';
+import { ExtractedPrescriptionSchema, HealthResponseSchema, ValidatedPrescriptionSchema } from '@medvoz/shared';
 import type { Env } from './config/env.js';
 import { ExtractionService } from './services/extraction.service.js';
 import { createLlmProvider } from './providers/llm/factory.js';
@@ -12,6 +12,7 @@ import { isAcceptedImageType, normalizeImage } from './lib/image.js';
 import { DrugValidationService } from './services/drug-validation.service.js';
 import { InMemoryDrugCatalog } from './providers/drugs/in-memory.js';
 import type { DrugCatalog, DrugFallback } from './providers/drugs/types.js';
+import { ExplanationService } from './services/explanation.service.js';
 
 type AppConfig = Pick<Env, 'CORS_ORIGIN' | 'LLM_PROVIDER' | 'LLM_MODEL'> &
   Partial<Pick<Env, 'MAX_IMAGE_MB' | 'LLM_EXTRACT_MODEL' | 'LLM_EXPLAIN_MODEL' | 'LLM_TIMEOUT_MS' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY'>>;
@@ -22,6 +23,7 @@ export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmPr
   const llmProvider = dependencies.llmProvider ?? createDefaultProvider(config);
   const extractionService = new ExtractionService(llmProvider);
   const drugValidationService = new DrugValidationService(dependencies.drugCatalog ?? new InMemoryDrugCatalog([]), dependencies.drugFallbacks ?? []);
+  const explanationService = new ExplanationService(llmProvider);
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: Math.floor(maxImageMb * 1024 * 1024), files: 1 },
@@ -70,6 +72,19 @@ export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmPr
         throw new HttpError(400, 'INVALID_PRESCRIPTION', 'La lista de medicamentos no tiene un formato válido.');
       }
       const result = await drugValidationService.validate(parsed.data);
+      response.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/prescriptions/explain', async (request, response, next) => {
+    try {
+      const parsed = ValidatedPrescriptionSchema.safeParse(request.body?.prescription ?? request.body);
+      if (!parsed.success) {
+        throw new HttpError(400, 'INVALID_VALIDATED_PRESCRIPTION', 'La fórmula validada no tiene un formato válido.');
+      }
+      const result = await explanationService.explain(parsed.data);
       response.status(200).json(result);
     } catch (error) {
       next(error);

@@ -63,6 +63,13 @@ h1 { max-width: 15ch; margin: 0.45rem 0 0; color: #15342f; font-size: clamp(2rem
 .error-message, .success-message { margin: 0; padding: 0.9rem 1rem; border-radius: 0.7rem; font-weight: 700; line-height: 1.45; }
 .error-message { color: #8c2e2e; background: #fff0f0; }
 .success-message { color: #17624f; background: #eaf7f3; }
+.explanation-box { display: grid; gap: 0.8rem; padding: 1rem; border: 1px solid #b9ddd3; border-radius: 1rem; background: #f3fbf8; }
+.explanation-box h2 { margin: 0; color: #173f37; font-size: 1.4rem; }
+.explanation-item { padding-top: 0.8rem; border-top: 1px solid #cfe6df; }
+.explanation-item h3, .explanation-item p, .audio-script, .disclaimer { margin: 0; line-height: 1.5; }
+.explanation-item h3 { color: #205f53; font-size: 1rem; }
+.explanation-item p, .audio-script { color: #3f6059; font-size: 0.92rem; }
+.disclaimer { padding: 0.8rem; border-radius: 0.6rem; color: #6f4d0b; background: #fff3cf; font-size: 0.86rem; font-weight: 700; }
 @media (max-width: 520px) {
   .shell { width: min(100% - 1rem, 48rem); padding-top: 1rem; }
   .panel { padding: 1.1rem; border-radius: 1rem; }

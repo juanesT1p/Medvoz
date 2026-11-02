@@ -23,6 +23,17 @@ const defaultResponse = JSON.stringify({
   documentWarnings: [],
 });
 
+const defaultExplanationResponse = JSON.stringify({
+  items: [{
+    itemId: '00000000-0000-4000-8000-000000000000',
+    purpose: 'Esta es una explicación de prueba.',
+    howToTakeAsPrescribed: 'La fórmula no indica cómo tomar o usar este medicamento.',
+    commonWarnings: ['Consulta a un profesional si tienes dudas.'],
+    askDoctorIf: ['Consulta al médico si algo no coincide.'],
+  }],
+  audioScript: 'Explicación de prueba. Consulta a tu médico o farmacéutico.',
+});
+
 export class MockProvider extends StructuredLlmProvider {
   readonly name = 'mock' as const;
   private readonly responses: string[];
@@ -43,6 +54,6 @@ export class MockProvider extends StructuredLlmProvider {
     signal: AbortSignal;
     model: string;
   }): Promise<{ text: string }> {
-    return { text: this.responses.shift() ?? defaultResponse };
+    return { text: this.responses.shift() ?? (_request.task === 'explain' ? defaultExplanationResponse : defaultResponse) };
   }
 }

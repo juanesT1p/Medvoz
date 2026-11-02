@@ -1,6 +1,6 @@
 # MedVoz
 
-MedVoz es una aplicación web para leer fórmulas médicas, permitir que la persona confirme lo detectado y ofrecer una explicación sencilla en español. La implementación se desarrolla por fases; la Fase 1 deja lista la extracción estructurada desde imágenes.
+MedVoz es una aplicación web para leer fórmulas médicas, permitir que la persona confirme lo detectado y ofrecer una explicación sencilla en español. La implementación se desarrolla por fases; la Fase 4 deja lista la explicación estructurada segura después de validar la fórmula.
 
 ## Requisitos
 
@@ -36,6 +36,8 @@ La extracción recibe una imagen en memoria mediante `POST /api/prescriptions/ex
 
 Después de confirmar la lista, `POST /api/prescriptions/validate` consulta primero el catálogo local y luego RxNorm/openFDA como respaldo. Los estados `verified`, `probable` y `not_found` se muestran en la interfaz; los dos últimos requieren revisar el nombre antes de continuar.
 
+Con una lista validada, `POST /api/prescriptions/explain` genera `Explanation` en JSON. El disclaimer lo agrega el backend de forma fija y el guion usa únicamente las indicaciones presentes en la fórmula.
+
 Para comprobar las credenciales y que el modelo admite texto e imagen:
 
 ```bash
@@ -62,5 +64,6 @@ El catálogo inicial está en [`data/drugs.csv`](data/drugs.csv). El script acep
 - `apps/api/src/providers/llm`: interfaz y proveedores intercambiables Gemini, Anthropic y mock.
 - `apps/api/src/services/extraction.service.ts`: extracción validada con Zod y UUID generados en backend.
 - `apps/api/src/services/drug-validation.service.ts`: validación local con respaldo externo tolerante a fallos.
+- `apps/api/src/services/explanation.service.ts`: explicación estructurada con protección contra datos inventados y prompt injection.
 
 Las claves de proveedores viven únicamente en el backend y se configuran mediante `.env`; no se registran ni se envían al frontend. La imagen y el texto de la fórmula se procesan en memoria y no se incluyen en logs.

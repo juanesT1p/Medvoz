@@ -1,4 +1,4 @@
-import { ExtractedPrescriptionSchema, ValidatedPrescriptionSchema, type ExtractedPrescription, type ValidatedPrescription } from '@medvoz/shared';
+import { ExplanationSchema, ExtractedPrescriptionSchema, ValidatedPrescriptionSchema, type Explanation, type ExtractedPrescription, type ValidatedPrescription } from '@medvoz/shared';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
@@ -63,4 +63,23 @@ export async function validatePrescription(prescription: ExtractedPrescription):
     throw new ApiError(errorPayload?.error?.code ?? 'API_ERROR', errorPayload?.error?.message ?? 'No pudimos validar los medicamentos.');
   }
   return ValidatedPrescriptionSchema.parse(payload);
+}
+
+export async function explainPrescription(prescription: ValidatedPrescription): Promise<Explanation> {
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl}/api/prescriptions/explain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prescription }),
+    });
+  } catch {
+    throw new ApiError('NETWORK_ERROR', 'No pudimos conectarnos con MedVoz. Revisa tu conexión e inténtalo de nuevo.');
+  }
+  const payload = (await response.json().catch(() => null)) as { error?: { code?: string; message?: string } } | Explanation | null;
+  if (!response.ok) {
+    const errorPayload = payload as { error?: { code?: string; message?: string } } | null;
+    throw new ApiError(errorPayload?.error?.code ?? 'API_ERROR', errorPayload?.error?.message ?? 'No pudimos generar la explicación.');
+  }
+  return ExplanationSchema.parse(payload);
 }
