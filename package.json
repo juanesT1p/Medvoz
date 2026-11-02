@@ -14,7 +14,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "seed:catalog": "echo \"El seed del catálogo se implementará en la Fase 3.\"",
-    "llm:check": "echo \"La comprobación de proveedores LLM se implementará en la Fase 1.\""
+    "llm:check": "pnpm --filter @medvoz/api llm:check"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

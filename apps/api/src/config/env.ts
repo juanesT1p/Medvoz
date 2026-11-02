@@ -1,11 +1,16 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+const optionalText = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.string().trim().min(1).optional(),
+);
+
 const rawEnvSchema = z.object({
   LLM_PROVIDER: z.enum(['gemini', 'anthropic', 'mock']),
   LLM_MODEL: z.string().trim().min(1),
-  LLM_EXTRACT_MODEL: z.string().trim().optional(),
-  LLM_EXPLAIN_MODEL: z.string().trim().optional(),
+  LLM_EXTRACT_MODEL: optionalText,
+  LLM_EXPLAIN_MODEL: optionalText,
   LLM_TIMEOUT_MS: z.coerce.number().int().positive(),
   GEMINI_API_KEY: z.string().trim().optional(),
   ANTHROPIC_API_KEY: z.string().trim().optional(),
