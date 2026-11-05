@@ -25,6 +25,7 @@ export class GeminiProvider extends StructuredLlmProvider {
         systemInstruction: request.system,
         responseMimeType: 'application/json',
         abortSignal: request.signal,
+        thinkingConfig: { thinkingBudget: 0 },
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
         responseSchema: this.schemaForPrompt(request.schema),

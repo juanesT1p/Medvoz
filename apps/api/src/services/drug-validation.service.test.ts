@@ -28,6 +28,7 @@ describe('DrugValidationService', () => {
 
   it('verifica coincidencias exactas y sinónimos', async () => {
     const result = await new DrugValidationService(catalog).validate(prescription('amoxicillin'));
+    expect(result.items[0]?.activeIngredient).toBe('amoxicilina');
     expect(result.items[0]?.match).toEqual({ status: 'verified', canonicalName: 'Amoxicilina', source: 'local_catalog' });
   });
 

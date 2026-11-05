@@ -1,5 +1,11 @@
-import 'dotenv/config';
+import { config as loadDotenv } from 'dotenv';
+import { resolve } from 'node:path';
 import { z } from 'zod';
+
+// pnpm ejecuta los scripts filtrados desde el directorio del paquete. Cargamos
+// primero un .env local y luego el de la raíz del monorepo como respaldo.
+loadDotenv({ path: resolve(process.cwd(), '.env') });
+loadDotenv({ path: resolve(process.cwd(), '../../.env') });
 
 const optionalText = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),

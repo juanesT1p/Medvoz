@@ -1,7 +1,11 @@
 import { PrismaClient } from '@prisma/client';
+import { config as loadDotenv } from 'dotenv';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { normalizeDrugName } from '../providers/drugs/normalize.js';
+
+loadDotenv({ path: resolve(process.cwd(), '.env') });
+loadDotenv({ path: resolve(process.cwd(), '../../.env') });
 
 const prisma = new PrismaClient();
 const csvPath = resolve(process.cwd(), '../../data/drugs.csv');

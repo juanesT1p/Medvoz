@@ -18,6 +18,7 @@ export class DrugValidationService {
     if (localMatch) {
       return {
         ...item,
+        activeIngredient: localMatch.activeIngredient,
         match: {
           status: localMatch.exact ? ('verified' as const) : ('probable' as const),
           canonicalName: localMatch.commercialName,

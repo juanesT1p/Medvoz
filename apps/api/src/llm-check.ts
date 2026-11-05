@@ -7,10 +7,10 @@ const provider = createLlmProvider(env);
 
 await provider.generateStructured({
   task: 'explain',
-  system: 'Devuelve una fórmula vacía válida en JSON. Esta es una prueba de conectividad.',
-  userText: 'Prueba de texto. Responde con isPrescription=false, items=[] y documentWarnings=[].',
+  system: 'Devuelve únicamente una explicación breve válida en JSON. Esta es una prueba de conectividad.',
+  userText: 'Responde con items=[] y audioScript="Prueba de conectividad.".',
   schema: ExplanationDraftSchema,
-  maxOutputTokens: 16,
+  maxOutputTokens: 256,
 });
 
 await provider.generateStructured({
@@ -18,7 +18,7 @@ await provider.generateStructured({
   system: 'Observa la imagen y devuelve una fórmula vacía válida en JSON. Esta es una prueba de conectividad.',
   image: { mimeType: 'image/png', data: testImage },
   schema: ExtractedPrescriptionDraftSchema,
-  maxOutputTokens: 16,
+  maxOutputTokens: 256,
 });
 
 console.log(`LLM disponible: ${provider.name}/${env.LLM_MODEL}`);
