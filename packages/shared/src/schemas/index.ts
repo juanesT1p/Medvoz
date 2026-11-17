@@ -95,6 +95,7 @@ export const ExplanationSchema = ExplanationDraftSchema.extend({
   cierreSeguridad: z.string().trim().min(1),
   notaInyectables: z.string().trim().min(1).optional(),
   audioScript: z.string().trim().min(1),
+  audioChunks: z.array(z.string().trim().min(1)).min(1),
 });
 
 export type ExplanationItem = z.infer<typeof ExplanationItemSchema>;

@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toSpokenText } from '@medvoz/shared';
+import { interpretInstruction, toSpokenScheduleNumbers, toSpokenText } from '@medvoz/shared';
 import { synthesizeSpeech } from '../api/prescriptions.js';
 
 export type VoiceSource = 'cloud' | 'native';
 export const VOICE_SPEEDS = [0.8, 1, 1.2] as const;
 
-export function useVoicePlayer(text: string) {
+export function useVoicePlayer(text: string, audioChunks: string[] = [text]) {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const audioUrlRef = useRef<string | null>(null);
+  const audioUrlsRef = useRef<string[]>([]);
+  const cloudChunkIndexRef = useRef(0);
   const nativeQueueRef = useRef<string[]>([]);
   const nativeIndexRef = useRef(0);
   const nativeOffsetRef = useRef(0);
@@ -17,12 +18,15 @@ export function useVoicePlayer(text: string) {
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [cloudChunkIndex, setCloudChunkIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const clearAudioUrl = useCallback(() => {
-    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-    audioUrlRef.current = null;
+    for (const url of audioUrlsRef.current) URL.revokeObjectURL(url);
+    audioUrlsRef.current = [];
+    cloudChunkIndexRef.current = 0;
+    setCloudChunkIndex(0);
     if (audioRef.current) audioRef.current.removeAttribute('src');
   }, []);
 
@@ -73,7 +77,9 @@ export function useVoicePlayer(text: string) {
       return;
     }
     stopNative();
-    const spokenText = toSpokenText(text);
+    const interpreted = interpretInstruction(text);
+    const safeText = interpreted.ambiguedades.length > 0 ? interpreted.legible.replace(/\bSC\b/gi, 'abreviatura que debe confirmarse') : interpreted.legible;
+    const spokenText = toSpokenScheduleNumbers(toSpokenText(safeText));
     const chunks = splitIntoPhrases(spokenText);
     if (chunks.length === 0) return;
     nativeQueueRef.current = chunks;
@@ -89,13 +95,15 @@ export function useVoicePlayer(text: string) {
     setLoading(true);
     setError(null);
     try {
-      const blob = await synthesizeSpeech(text);
+      const blobs: Blob[] = [];
+      for (const chunk of audioChunks.length > 0 ? audioChunks : [text]) blobs.push(await synthesizeSpeech(chunk));
       clearAudioUrl();
-      const url = URL.createObjectURL(blob);
-      audioUrlRef.current = url;
+      audioUrlsRef.current = blobs.map((blob) => URL.createObjectURL(blob));
+      cloudChunkIndexRef.current = 0;
+      setCloudChunkIndex(0);
       const audio = audioRef.current;
       if (!audio) throw new Error('Elemento de audio no disponible.');
-      audio.src = url;
+      audio.src = audioUrlsRef.current[0] ?? '';
       audio.playbackRate = speed;
       await audio.play();
       setPlaying(true);
@@ -107,7 +115,7 @@ export function useVoicePlayer(text: string) {
     } finally {
       setLoading(false);
     }
-  }, [clearAudioUrl, speakNative, speed, text]);
+  }, [audioChunks, clearAudioUrl, speakNative, speed, text]);
 
   const toggle = useCallback(() => {
     setError(null);
@@ -126,7 +134,7 @@ export function useVoicePlayer(text: string) {
     }
 
     const audio = audioRef.current;
-    if (!audioUrlRef.current || !audio) {
+    if (audioUrlsRef.current.length === 0 || !audio) {
       void loadCloudAudio();
       return;
     }
@@ -150,7 +158,10 @@ export function useVoicePlayer(text: string) {
     }
     const audio = audioRef.current;
     if (audio) {
+      cloudChunkIndexRef.current = 0;
+      setCloudChunkIndex(0);
       audio.currentTime = 0;
+      audio.src = audioUrlsRef.current[0] ?? audio.src;
       void audio.play();
     }
   }, [speakNative, source]);
@@ -163,6 +174,15 @@ export function useVoicePlayer(text: string) {
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onEnded = () => {
+      const nextIndex = cloudChunkIndexRef.current + 1;
+      if (nextIndex < audioUrlsRef.current.length) {
+        cloudChunkIndexRef.current = nextIndex;
+        setCloudChunkIndex(nextIndex);
+        audio.src = audioUrlsRef.current[nextIndex] ?? '';
+        audio.playbackRate = speed;
+        void audio.play();
+        return;
+      }
       setPlaying(false);
       setCurrentTime(audio.duration || 0);
     };
@@ -178,7 +198,7 @@ export function useVoicePlayer(text: string) {
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };
-  }, []);
+  }, [speed]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = speed;
@@ -202,7 +222,7 @@ export function useVoicePlayer(text: string) {
     duration,
     error,
     notice,
-    progress: duration > 0 ? Math.min(1, currentTime / duration) : currentTime,
+    progress: duration > 0 ? Math.min(1, (cloudChunkIndex + currentTime / duration) / Math.max(audioChunks.length, 1)) : currentTime,
     indeterminate: source === 'native' || duration === 0,
     toggle,
     reset,

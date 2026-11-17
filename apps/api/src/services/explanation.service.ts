@@ -26,7 +26,7 @@ export class ExplanationService {
     const generated = await Promise.all(prescription.items.map((item) => this.generateGeneralInformation(item)));
     const items = prescription.items.map((item, index) => buildExplanationItem(item, generated[index]));
     const hasInjectable = prescription.items.some((item) => isInjectableRoute(item.route));
-    const audioScript = buildAudioScript(items, hasInjectable);
+    const audioChunks = buildAudioChunks(items, hasInjectable);
 
     return ExplanationSchema.parse({
       introduccion: FIXED_EXPLANATION_INTRODUCTION,
@@ -34,7 +34,8 @@ export class ExplanationService {
       items,
       cierreSeguridad: FIXED_EXPLANATION_CLOSING,
       ...(hasInjectable ? { notaInyectables: FIXED_INJECTABLE_NOTE } : {}),
-      audioScript,
+      audioScript: audioChunks.join(' '),
+      audioChunks,
     });
   }
 
@@ -149,17 +150,16 @@ function buildFrequencyAndDuration(item: ValidatedItem): { legible: string; ambi
   };
 }
 
-function buildAudioScript(items: ExplanationItem[], hasInjectable: boolean): string {
+function buildAudioChunks(items: ExplanationItem[], hasInjectable: boolean): string[] {
   const blocks = items.map((item) => {
     const verification = item.requiereVerificacion ? ' Pide a tu médico o farmacéutico que confirme este dato.' : '';
     const administration = item.ambiguedades.length > 0 ? 'La fórmula contiene un dato de administración que debe confirmarse.' : item.comoSeAdministra;
     return `${item.nombreMostrado}. Suele usarse para: ${item.paraQueSuele}. ${administration} ${item.frecuenciaYDuracion} Precaución: ${item.precauciones[0] ?? 'confirma las precauciones con un profesional.'}${verification}`;
   });
   const injectableNote = hasInjectable ? ` ${FIXED_INJECTABLE_NOTE}` : '';
-  return toSpokenScheduleNumbers(toSpokenText(`${FIXED_EXPLANATION_INTRODUCTION} ${blocks.join(' ')}${injectableNote} ${FIXED_EXPLANATION_CLOSING}`))
-    .split(/\s+/)
-    .slice(0, 250)
-    .join(' ');
+  return [FIXED_EXPLANATION_INTRODUCTION, ...blocks, `${injectableNote} ${FIXED_EXPLANATION_CLOSING}`]
+    .map((chunk) => toSpokenScheduleNumbers(toSpokenText(chunk)).trim())
+    .filter(Boolean);
 }
 
 function buildSummary(count: number): string {

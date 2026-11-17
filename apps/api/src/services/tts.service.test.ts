@@ -20,6 +20,16 @@ describe('TtsService y OpenAiTtsProvider', () => {
     expect(synthesize).toHaveBeenCalledOnce();
   });
 
+  it('expande abreviaturas y no lee SC como un dato seguro', async () => {
+    const synthesize = vi.fn(async (text: string) => {
+      expect(text).toContain('dos gramos diluidos en cien mililitros de solución salina, por la vena');
+      expect(text).toContain('abreviatura que debe confirmarse');
+      expect(text).not.toMatch(/\b(?:GR|CC|SSNIV|SC)\b/i);
+      return Buffer.from([1, 2, 3]);
+    });
+    await new TtsService({ name: 'mock', contentType: 'audio/mpeg', synthesize }).synthesize('2 GR EN 100 CC SSNIV. 50 MG SC. Cada 24 horas.');
+  });
+
   it('envía texto y formato MP3 al endpoint cloud', async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { model: string; input: string; response_format: string };

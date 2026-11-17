@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import { toSpokenText } from '@medvoz/shared';
+import { interpretInstruction, toSpokenScheduleNumbers, toSpokenText } from '@medvoz/shared';
 import { TtsInvalidOutputError } from '../providers/tts/errors.js';
 import type { TtsProvider, TtsSynthesizeOptions } from '../providers/tts/types.js';
 
@@ -13,7 +13,11 @@ export class TtsService {
   }
 
   async synthesize(text: string, options?: TtsSynthesizeOptions): Promise<Buffer> {
-    const normalized = toSpokenText(text.trim());
+    const interpreted = interpretInstruction(text.trim());
+    const safeInstruction = interpreted.ambiguedades.length > 0
+      ? interpreted.legible.replace(/\bSC\b/gi, 'abreviatura que debe confirmarse')
+      : interpreted.legible;
+    const normalized = toSpokenScheduleNumbers(toSpokenText(safeInstruction));
     if (!normalized) throw new TtsInvalidOutputError('El guion de audio no puede estar vacío.');
     if (countWords(normalized) > MAX_AUDIO_SCRIPT_WORDS) {
       throw new TtsInvalidOutputError(`El guion no puede superar ${MAX_AUDIO_SCRIPT_WORDS} palabras.`);

@@ -45,6 +45,14 @@ export function interpretInstruction(text: string): InstructionInterpretation {
   }
 
   legible = legible.replace(
+    /(\d+(?:[.,]\d+)?)\s*(GRS?|G|MG|MCG|ML|CC)\s*\/\s*(?:(\d+(?:[.,]\d+)?)\s*)?(GRS?|G|MG|MCG|ML|CC)\b/gi,
+    (_match, numerator: string, numeratorUnit: string, denominator: string | undefined, denominatorUnit: string) => {
+      const first = `${numerator} ${expandMeasuredUnit(numeratorUnit, numerator)}`;
+      return denominator ? `${first} por cada ${denominator} ${expandMeasuredUnit(denominatorUnit, denominator)}` : `${first} por ${expandMeasuredUnit(denominatorUnit, '1')}`;
+    },
+  );
+
+  legible = legible.replace(
     /(\d+(?:[.,]\d+)?)\s*G(?:RS?)?\s+EN\s+(\d+(?:[.,]\d+)?)\s*CC\s*(?:SSN\s*IV|SSNIV)\b/gi,
     '$1 gramos diluidos en $2 mililitros de solución salina, por la vena',
   );
