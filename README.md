@@ -35,6 +35,14 @@ flowchart LR
 
 La aplicación no genera imágenes. La imagen subida se procesa temporalmente para leer el contenido; después, la explicación se genera usando los datos estructurados y confirmados.
 
+### Vistas de la interfaz
+
+- **Cargar:** hero de bienvenida, subida por cámara o drag-and-drop, consentimiento explícito, privacidad visible y ejemplos ficticios.
+- **Revisar:** visor de la fórmula con zoom, brillo y contraste; tarjetas editables; estados de validación con su fuente y confirmación accesible.
+- **Escuchar:** reproductor sticky con Gemini/OpenAI o voz nativa, cronograma basado solo en frecuencias interpretables, tarjetas expandibles y aviso médico permanente.
+
+La interfaz es mobile first, admite modo claro/oscuro y escala de texto A−/A+. Las preferencias visuales son lo único que se conserva localmente; no se guardan fórmulas ni imágenes.
+
 ## Funcionalidades principales
 
 - Lectura de imágenes JPEG, PNG, WebP y HEIC.
@@ -170,6 +178,8 @@ pnpm test
 pnpm build
 pnpm e2e
 ```
+
+El recorrido e2e incluye una auditoría axe de las tres vistas y comprobaciones responsive a 360, 768 y 1280 píxeles.
 
 También puedes comprobar la conexión real con Gemini:
 
