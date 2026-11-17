@@ -14,6 +14,8 @@ export const ExtractedItemSchema = z.object({
   duration: nullableText,
   route: nullableText,
   instructions: nullableText,
+  dosisValor: z.number().finite().nullable().optional(),
+  dosisUnidad: nullableText.optional(),
   confidence: z.number().min(0).max(1),
   legibility: z.enum(['clear', 'uncertain', 'illegible']),
 });
@@ -82,5 +84,11 @@ export const HealthResponseSchema = z.object({
   llmProvider: z.string().min(1),
   llmModel: z.string().min(1),
 });
+
+export const TtsRequestSchema = z.object({
+  audioScript: z.string().trim().min(1),
+});
+
+export type TtsRequest = z.infer<typeof TtsRequestSchema>;
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;

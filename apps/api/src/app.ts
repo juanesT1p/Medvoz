@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import multer, { MulterError } from 'multer';
 import pino from 'pino';
 import { randomUUID } from 'node:crypto';
-import { ExtractedPrescriptionSchema, HealthResponseSchema, ValidatedPrescriptionSchema } from '@medvoz/shared';
+import { ExtractedPrescriptionSchema, HealthResponseSchema, TtsRequestSchema, ValidatedPrescriptionSchema } from '@medvoz/shared';
 import type { Env } from './config/env.js';
 import { ExtractionService } from './services/extraction.service.js';
 import { createLlmProvider } from './providers/llm/factory.js';
@@ -23,7 +23,7 @@ import type { TtsProvider } from './providers/tts/types.js';
 import { TtsService } from './services/tts.service.js';
 
 type AppConfig = Pick<Env, 'CORS_ORIGIN' | 'LLM_PROVIDER' | 'LLM_MODEL'> &
-  Partial<Pick<Env, 'MAX_IMAGE_MB' | 'LLM_EXTRACT_MODEL' | 'LLM_EXPLAIN_MODEL' | 'LLM_TIMEOUT_MS' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY' | 'TTS_PROVIDER' | 'TTS_API_KEY'>>;
+  Partial<Pick<Env, 'MAX_IMAGE_MB' | 'LLM_EXTRACT_MODEL' | 'LLM_EXPLAIN_MODEL' | 'LLM_TIMEOUT_MS' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY' | 'TTS_PROVIDER' | 'TTS_API_KEY' | 'TTS_MODEL' | 'TTS_VOICE'>>;
 type UsageEventRecorder = (event: { phase: string; success: boolean; latencyMs: number }) => Promise<void>;
 
 export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmProvider; drugCatalog?: DrugCatalog; drugFallbacks?: DrugFallback[]; ttsProvider?: TtsProvider; usageEventRecorder?: UsageEventRecorder } = {}) {
@@ -127,15 +127,16 @@ export function createApp(config: AppConfig, dependencies: { llmProvider?: LlmPr
 
   app.post('/api/tts', async (request, response, next) => {
     try {
-      const audioScript = request.body?.audioScript;
-      if (typeof audioScript !== 'string' || !audioScript.trim()) {
+      const parsed = TtsRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
         throw new HttpError(400, 'INVALID_AUDIO_SCRIPT', 'Debes enviar un guion de audio válido.');
       }
+      const audioScript = parsed.data.audioScript;
       if (audioScript.trim().split(/\s+/).length > 250) {
         throw new HttpError(400, 'AUDIO_SCRIPT_TOO_LONG', 'El guion de audio no puede superar 250 palabras.');
       }
       const audio = await ttsService.synthesize(audioScript);
-      response.status(200).type('audio/mpeg').set('Cache-Control', 'no-store').set('Content-Length', String(audio.length)).send(audio);
+      response.status(200).type(ttsService.contentType).set('Cache-Control', 'no-store').set('Content-Length', String(audio.length)).send(audio);
     } catch (error) {
       next(error);
     }
@@ -173,6 +174,9 @@ function createDefaultTtsProvider(config: AppConfig): TtsProvider {
   return createTtsProvider({
     TTS_PROVIDER: config.TTS_PROVIDER ?? 'browser',
     TTS_API_KEY: config.TTS_API_KEY,
+    TTS_MODEL: config.TTS_MODEL ?? 'gemini-3.8-flash-lite-tts',
+    TTS_VOICE: config.TTS_VOICE ?? 'Kore',
+    GEMINI_API_KEY: config.GEMINI_API_KEY,
     LLM_TIMEOUT_MS: config.LLM_TIMEOUT_MS ?? 30_000,
   });
 }

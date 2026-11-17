@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { MockProvider } from './providers/llm/mock.js';
 import { InMemoryDrugCatalog } from './providers/drugs/in-memory.js';
 import { MockTtsProvider } from './providers/tts/mock.js';
+import { TtsUnavailableError } from './providers/tts/errors.js';
 
 describe('GET /health', () => {
   it('devuelve el estado y la configuración pública activa', async () => {
@@ -164,5 +165,35 @@ describe('POST /api/tts', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('AUDIO_SCRIPT_TOO_LONG');
+  });
+
+  it('valida el guion y normaliza la dosis antes de invocar al proveedor', async () => {
+    const received: string[] = [];
+    const response = await request(
+      createApp(
+        { CORS_ORIGIN: 'http://localhost:5173', LLM_PROVIDER: 'mock', LLM_MODEL: 'mock' },
+        { ttsProvider: { name: 'gemini', contentType: 'audio/wav', synthesize: async (text) => { received.push(text); return Buffer.from('RIFF-test'); } } },
+      ),
+    )
+      .post('/api/tts')
+      .send({ audioScript: '500 mg' });
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toMatch(/^audio\/wav/);
+    expect(received).toEqual(['quinientos miligramos']);
+  });
+
+  it('devuelve un error público y claro si falla el proveedor', async () => {
+    const response = await request(
+      createApp(
+        { CORS_ORIGIN: 'http://localhost:5173', LLM_PROVIDER: 'mock', LLM_MODEL: 'mock' },
+        { ttsProvider: { name: 'gemini', contentType: 'audio/wav', synthesize: async () => { throw new TtsUnavailableError(); } } },
+      ),
+    )
+      .post('/api/tts')
+      .send({ audioScript: 'Hola.' });
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ error: { code: 'TTS_UNAVAILABLE', message: 'No se pudo generar audio. Puedes usar la voz del navegador.' } });
   });
 });

@@ -11,6 +11,7 @@ type OpenAiTtsConfig = {
 
 export class OpenAiTtsProvider implements TtsProvider {
   readonly name = 'openai' as const;
+  readonly contentType = 'audio/mpeg' as const;
   private readonly model: string;
   private readonly voice: string;
   private readonly timeoutMs: number;

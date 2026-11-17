@@ -2,7 +2,8 @@ import { StrictMode, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Explanation, ExtractedItem, ExtractedPrescription, ValidatedPrescription, ValidatedItem } from '@medvoz/shared';
-import { ApiError, explainPrescription, extractPrescription, synthesizeSpeech, validatePrescription } from './api/prescriptions.js';
+import { ApiError, explainPrescription, extractPrescription, validatePrescription } from './api/prescriptions.js';
+import { useVoicePlayer, VOICE_SPEEDS } from './hooks/useVoicePlayer.js';
 import './styles.css';
 
 type Screen = 'capture' | 'confirm';
@@ -159,13 +160,11 @@ function App() {
       setValidation(result);
       const hasUnverified = result.items.some((item) => item.match.status !== 'verified');
       if (hasUnverified) {
-        setConfirmed(false);
-        setError('Revisa los medicamentos marcados como probables o no encontrados antes de continuar.');
-      } else {
-        const generatedExplanation = await explainPrescription(result);
-        setExplanation(generatedExplanation);
-        setConfirmed(true);
+        setError('Hay medicamentos que no pudimos confirmar en el catálogo. La explicación será limitada; revisa el nombre y la dosis con un profesional antes de usarlos.');
       }
+      const generatedExplanation = await explainPrescription(result);
+      setExplanation(generatedExplanation);
+      setConfirmed(true);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : 'No pudimos validar los medicamentos. Inténtalo de nuevo.');
     } finally {
@@ -326,25 +325,30 @@ function ConfirmationScreen({
       <button className="add-item" type="button" onClick={onAdd}>＋ Agregar medicamento</button>
       {error ? <ErrorMessage message={error} /> : null}
       {confirmed ? <p className="success-message" role="status">Lista confirmada. Ya puedes continuar con la explicación.</p> : null}
-      {explanation ? <ExplanationView explanation={explanation} /> : null}
+      {explanation ? <ExplanationView explanation={explanation} prescription={prescription} /> : null}
       <button className="button button-submit" type="button" disabled={!canConfirm || confirmed || validating} onClick={onConfirm}>{validating ? 'Validando medicamentos…' : confirmed ? 'Lista confirmada' : 'Confirmar y explicar'}</button>
     </section>
   );
 }
 
-function ExplanationView({ explanation }: { explanation: Explanation }) {
+function ExplanationView({ explanation, prescription }: { explanation: Explanation; prescription: ExtractedPrescription }) {
   return (
     <section className="explanation-box" aria-labelledby="explanation-title">
-      <p className="eyebrow">Explicación</p>
-      <h2 id="explanation-title">Esto es lo que dice tu fórmula</h2>
-      {explanation.items.map((item) => (
-        <article className="explanation-item" key={item.itemId}>
-          <h3>{item.purpose}</h3>
-          <p><strong>Cómo usarlo según la fórmula:</strong> {item.howToTakeAsPrescribed}</p>
-          <p><strong>Ten en cuenta:</strong> {item.commonWarnings.join(' ')}</p>
-          <p><strong>Consulta si:</strong> {item.askDoctorIf.join(' ')}</p>
-        </article>
-      ))}
+      <p className="eyebrow">Análisis de la fórmula confirmada</p>
+      <h2 id="explanation-title">Explicación de tus medicamentos</h2>
+      {explanation.items.map((item) => {
+        const prescriptionItem = prescription.items.find((candidate) => candidate.id === item.itemId);
+        return (
+          <article className="explanation-item" key={item.itemId}>
+            <h3>{prescriptionItem?.name ?? 'Medicamento'}</h3>
+            {prescriptionItem ? <p><strong>Datos leídos:</strong> {[prescriptionItem.strength, prescriptionItem.form, prescriptionItem.route].filter(Boolean).join(' · ') || 'No indicados en la fórmula.'}</p> : null}
+            <p><strong>Para qué puede servir:</strong> {item.purpose}</p>
+            <p><strong>Cómo usarlo según la fórmula:</strong> {item.howToTakeAsPrescribed}</p>
+            <p><strong>Ten en cuenta:</strong> {item.commonWarnings.join(' ')}</p>
+            <p><strong>Consulta si:</strong> {item.askDoctorIf.join(' ')}</p>
+          </article>
+        );
+      })}
       <p className="audio-script"><strong>Guion:</strong> {explanation.audioScript}</p>
       <AudioPlayer audioScript={explanation.audioScript} disclaimer={explanation.disclaimer} />
     </section>
@@ -352,120 +356,48 @@ function ExplanationView({ explanation }: { explanation: Explanation }) {
 }
 
 function AudioPlayer({ audioScript, disclaimer }: { audioScript: string; disclaimer: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [fallback, setFallback] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [repeat, setRepeat] = useState(false);
-  const [speed, setSpeed] = useState(1);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const player = useVoicePlayer(audioScript);
   const words = audioScript.split(/\s+/).filter(Boolean);
-  const currentWordIndex = duration > 0 ? Math.min(words.length - 1, Math.floor((currentTime / duration) * words.length)) : -1;
-
-  useEffect(() => {
-    return () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      window.speechSynthesis?.cancel();
-    };
-  }, [audioUrl]);
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.playbackRate = speed;
-  }, [audioUrl, speed]);
-
-  const speakInBrowser = () => {
-    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
-      setError('Este navegador no tiene voz disponible.');
-      setPlaying(false);
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(audioScript);
-    utterance.lang = 'es-CO';
-    utterance.rate = speed;
-    utterance.onend = () => {
-      if (repeat) speakInBrowser();
-      else setPlaying(false);
-    };
-    utterance.onerror = () => {
-      setPlaying(false);
-      setError('No se pudo reproducir la voz del navegador.');
-    };
-    window.speechSynthesis.speak(utterance);
-    setFallback(true);
-    setPlaying(true);
-    setError(null);
-  };
-
-  const generateAudio = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const blob = await synthesizeSpeech(audioScript);
-      setAudioUrl(URL.createObjectURL(blob));
-      setFallback(false);
-      setPlaying(false);
-    } catch {
-      speakInBrowser();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const togglePlayback = () => {
-    if (fallback) {
-      if (playing) window.speechSynthesis.pause();
-      else if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-      else speakInBrowser();
-      setPlaying((current) => !current);
-      return;
-    }
-    if (!audioUrl) {
-      void generateAudio();
-      return;
-    }
-    if (!audioRef.current) return;
-    if (audioRef.current.paused) void audioRef.current.play();
-    else audioRef.current.pause();
-  };
-
-  const resetAudio = () => {
-    if (fallback) {
-      window.speechSynthesis.cancel();
-      speakInBrowser();
-    } else if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      void audioRef.current.play();
-    }
-  };
+  const currentWordIndex = player.duration > 0 ? Math.min(words.length - 1, Math.floor((player.currentTime / player.duration) * words.length)) : -1;
 
   return (
     <div className="audio-player" aria-labelledby="audio-title">
       <h3 id="audio-title">Escucha la explicación</h3>
       <div className="audio-controls">
-        <button className="button button-primary audio-button" type="button" onClick={togglePlayback} disabled={loading}>
-          {loading ? 'Preparando audio…' : playing ? 'Pausar' : 'Reproducir'}
+        <button className="button button-primary audio-button" type="button" onClick={player.toggle} disabled={player.loading} aria-label={player.playing ? 'Pausar explicación' : 'Reproducir explicación'}>
+          {player.loading ? 'Preparando audio…' : player.playing ? 'Pausar' : 'Reproducir'}
         </button>
-        <button className="text-button" type="button" onClick={resetAudio} disabled={loading || (!audioUrl && !fallback)}>Repetir</button>
+        <button className="text-button" type="button" onClick={player.reset} disabled={player.loading}>Repetir</button>
         <label className="speed-control">Velocidad
-          <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
-            <option value="0.75">0.75×</option>
-            <option value="1">1×</option>
-            <option value="1.25">1.25×</option>
+          <select value={player.speed} onChange={(event) => player.setSpeed(Number(event.target.value))} aria-label="Velocidad de reproducción">
+            {VOICE_SPEEDS.map((value) => <option value={value} key={value}>{value}×</option>)}
           </select>
         </label>
-        <label className="repeat-control"><input type="checkbox" checked={repeat} onChange={(event) => setRepeat(event.target.checked)} /> Repetir</label>
+        <label className="speed-control">Fuente
+          <select value={player.source} onChange={(event) => player.selectSource(event.target.value as 'cloud' | 'native')} aria-label="Fuente de voz">
+            <option value="cloud">TTS Cloud</option>
+            <option value="native">Voz nativa</option>
+          </select>
+        </label>
       </div>
-      {audioUrl ? <audio ref={audioRef} src={audioUrl} controls onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onEnded={() => { if (repeat) resetAudio(); else setPlaying(false); }} /> : null}
-      {fallback ? <p className="audio-status" role="status">Audio cloud no disponible; usando la voz de tu navegador.</p> : null}
-      {error ? <ErrorMessage message={error} /> : null}
-      <p className="sync-text" aria-live="off">{words.map((word, index) => <span className={index <= currentWordIndex ? 'word-active' : ''} key={`${word}-${index}`}>{word} </span>)}</p>
+      <audio ref={player.audioRef} className="audio-element" aria-hidden="true" />
+      <div className="audio-progress" aria-label="Progreso del audio">
+        <progress max="1" value={player.indeterminate ? undefined : player.progress} />
+        <span>{player.indeterminate ? 'Avance aproximado' : `${formatAudioTime(player.currentTime)} de ${formatAudioTime(player.duration)}`}</span>
+      </div>
+      {player.notice ? <p className="audio-status" role="status" aria-live="polite">{player.notice}</p> : null}
+      {player.error ? <ErrorMessage message={player.error} /> : null}
+      <p className="sync-text" aria-live="polite">{words.map((word, index) => <span className={index <= currentWordIndex ? 'word-active' : ''} key={`${word}-${index}`}>{word} </span>)}</p>
       <p className="disclaimer">{disclaimer}</p>
     </div>
   );
+}
+
+function formatAudioTime(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '0:00';
+  const minutes = Math.floor(value / 60);
+  const seconds = Math.floor(value % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
 }
 
 function MedicationCard({

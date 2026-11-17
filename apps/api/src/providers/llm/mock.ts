@@ -12,6 +12,8 @@ const defaultResponse = JSON.stringify({
       strength: '500 mg',
       form: 'tableta',
       dose: '1 tableta',
+      dosisValor: 1,
+      dosisUnidad: 'tableta',
       frequency: 'cada 8 horas',
       duration: 'por 3 días',
       route: 'oral',

@@ -21,8 +21,10 @@ const rawEnvSchema = z.object({
   GEMINI_API_KEY: z.string().trim().optional(),
   ANTHROPIC_API_KEY: z.string().trim().optional(),
   DATABASE_URL: z.string().url(),
-  TTS_PROVIDER: z.enum(['browser', 'openai', 'mock']),
+  TTS_PROVIDER: z.enum(['browser', 'openai', 'gemini', 'mock']),
   TTS_API_KEY: z.string().trim().optional(),
+  TTS_MODEL: z.string().trim().min(1).default('gemini-3.8-flash-lite-tts'),
+  TTS_VOICE: z.string().trim().min(1).default('Kore'),
   PORT: z.coerce.number().int().min(1).max(65_535),
   CORS_ORIGIN: z.string().url(),
   MAX_IMAGE_MB: z.coerce.number().positive().max(50),
@@ -39,6 +41,10 @@ export const envSchema = rawEnvSchema.superRefine((env, context) => {
 
   if (env.TTS_PROVIDER === 'openai' && !env.TTS_API_KEY) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['TTS_API_KEY'], message: 'Es obligatoria cuando TTS_PROVIDER=openai.' });
+  }
+
+  if (env.TTS_PROVIDER === 'gemini' && !env.GEMINI_API_KEY) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['GEMINI_API_KEY'], message: 'Es obligatoria cuando TTS_PROVIDER=gemini.' });
   }
 });
 

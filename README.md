@@ -18,8 +18,8 @@ MedVoz es una aplicación web académica que utiliza inteligencia artificial par
 | Audio (Gemini TTS, OpenAI TTS y voz nativa)  | ✅ Funcional                             |
 | Lectura correcta de dosis y unidades (mg, ml)| ✅ Normalizador de texto hablado         |
 | Rediseño de interfaz y accesibilidad         | ✅ Implementado                          |
-| Guía enriquecida (qué hace cada medicamento) | 🚧 En progreso                           |
-| Glosario de abreviaturas de fórmulas         | 🚧 En progreso                           |
+| Guía enriquecida (qué hace cada medicamento) | ✅ Funcional                             |
+| Glosario de abreviaturas de fórmulas         | ✅ Implementado                           |
 
 ## Flujo de la aplicación
 
@@ -74,13 +74,14 @@ MedVoz/
 
 ### Servicios externos
 
-| Servicio            | Uso                                          | Configuración                      |
-| ------------------- | -------------------------------------------- | ---------------------------------- |
-| Google Gemini       | Lectura de imágenes, explicación y audio     | `GEMINI_API_KEY`                   |
-| PostgreSQL + Prisma | Catálogo y métricas anónimas                 | `DATABASE_URL`                     |
-| RxNorm              | Validación de respaldo                       | No requiere clave                  |
-| openFDA             | Validación de respaldo                       | No requiere clave                  |
-| OpenAI TTS          | Audio cloud opcional                         | `TTS_API_KEY`                      |
+| Servicio            | Uso                               | Configuración     |
+| ------------------- | --------------------------------- | ----------------- |
+| Google Gemini       | Lectura de imágenes y explicación | `GEMINI_API_KEY`  |
+| PostgreSQL + Prisma | Catálogo y métricas anónimas      | `DATABASE_URL`    |
+| RxNorm              | Validación de respaldo            | No requiere clave |
+| openFDA             | Validación de respaldo            | No requiere clave |
+| OpenAI TTS          | Audio cloud opcional              | `TTS_API_KEY`     |
+| Gemini TTS          | Audio cloud opcional              | `GEMINI_API_KEY`  |
 
 ## Requisitos
 
@@ -148,6 +149,7 @@ TTS_API_KEY=tu_clave_de_openai
 **Cómo se lee el texto:** antes de enviarse a cualquier proveedor (y también en el respaldo del navegador), el texto pasa por `toSpokenText`, que convierte unidades, decimales y abreviaturas de posología a palabras (`0,5 mg` → "cero coma cinco miligramos"; `c/8h` → "cada 8 horas"). Si el audio cloud falla, la interfaz cambia automáticamente a la voz del navegador.
 
 > **Limitación conocida:** un valor con punto decimal y tres decimales (por ejemplo `0.125`) es ambiguo frente al separador de miles. Siempre que sea posible, la dosis viaja como campos estructurados (valor y unidad) y no como texto libre.
+El backend normaliza siempre unidades, decimales y abreviaturas de posología antes de llamar al proveedor. Si el audio cloud no está disponible, la interfaz cambia a `speechSynthesis` en español (`es-CO`, con alternativas regionales).
 
 ## Endpoints principales
 

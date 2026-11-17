@@ -18,7 +18,7 @@ export class ExplanationService {
       system: explainPrescriptionSystemPrompt,
       userText: JSON.stringify({
         isPrescription: prescription.isPrescription,
-        items: prescription.items.map(({ id, rawText, name, activeIngredient, strength, form, dose, frequency, duration, route, instructions, match }) => ({
+        items: prescription.items.map(({ id, rawText, name, activeIngredient, strength, form, dose, frequency, duration, route, instructions, dosisValor, dosisUnidad, match }) => ({
           id,
           rawText,
           name,
@@ -31,6 +31,8 @@ export class ExplanationService {
           route,
           instructions,
           match,
+          dosisValor: dosisValor ?? null,
+          dosisUnidad: dosisUnidad ?? null,
         })),
         documentWarnings: prescription.documentWarnings,
       }),
@@ -75,11 +77,36 @@ function buildSafeAudioScript(prescriptionItems: ValidatedItem[], explanationIte
   const sections = explanationItems.map((explanationItem, index) => {
     const prescriptionItem = prescriptionItems[index];
     return prescriptionItem
-      ? `${prescriptionItem.name}. ${explanationItem.purpose} ${explanationItem.howToTakeAsPrescribed}`
+      ? `${prescriptionItem.name}: ${buildAudioPrescriptionSection(prescriptionItem)} ${explanationItem.purpose}`
       : explanationItem.howToTakeAsPrescribed;
   });
   const script = `Esta es una explicación de tu fórmula. ${sections.join(' ')} Si algo no coincide o tienes dudas, consulta a tu médico o farmacéutico.`;
   return script.split(/\s+/).slice(0, 250).join(' ');
+}
+
+function buildAudioPrescriptionSection(item: ValidatedItem): string {
+  const structuredDose = getStructuredDose(item);
+  const dose = structuredDose ? `${formatDoseValue(structuredDose.value)} ${structuredDose.unit}` : item.dose;
+  const parts = [dose, item.frequency, item.duration ? `durante ${item.duration.replace(/^por\s+/i, '')}` : null, item.route ? `por vía ${item.route}` : null, item.instructions]
+    .filter((fact): fact is string => Boolean(fact))
+    .filter((fact) => !containsPromptInjection(fact));
+  return parts.length > 0 ? `${parts.join(', ')}.` : 'La fórmula no indica dosis ni frecuencia.';
+}
+
+function getStructuredDose(item: ValidatedItem): { value: number; unit: string } | null {
+  if (typeof item.dosisValor === 'number' && Number.isFinite(item.dosisValor) && item.dosisUnidad) {
+    return { value: item.dosisValor, unit: item.dosisUnidad };
+  }
+
+  const match = item.dose?.trim().match(/^(\d+(?:[.,]\d+)?)\s+([^,;]+)$/);
+  if (!match) return null;
+  const numericValue = Number(match[1]?.replace(',', '.'));
+  const unit = match[2]?.trim();
+  return Number.isFinite(numericValue) && unit ? { value: numericValue, unit } : null;
+}
+
+function formatDoseValue(value: number): string {
+  return String(value).replace('.', ',');
 }
 
 function hasOnlyPrescriptionNumbers(text: string, item: ValidatedItem): boolean {

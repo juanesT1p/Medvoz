@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { toSpokenText } from '@medvoz/shared';
 import { TtsInvalidOutputError } from '../providers/tts/errors.js';
 import type { TtsProvider, TtsSynthesizeOptions } from '../providers/tts/types.js';
 
@@ -7,8 +8,12 @@ export const MAX_AUDIO_SCRIPT_WORDS = 250;
 export class TtsService {
   constructor(private readonly provider: TtsProvider) {}
 
+  get contentType(): 'audio/mpeg' | 'audio/wav' {
+    return this.provider.contentType ?? 'audio/mpeg';
+  }
+
   async synthesize(text: string, options?: TtsSynthesizeOptions): Promise<Buffer> {
-    const normalized = text.trim();
+    const normalized = toSpokenText(text.trim());
     if (!normalized) throw new TtsInvalidOutputError('El guion de audio no puede estar vacío.');
     if (countWords(normalized) > MAX_AUDIO_SCRIPT_WORDS) {
       throw new TtsInvalidOutputError(`El guion no puede superar ${MAX_AUDIO_SCRIPT_WORDS} palabras.`);
