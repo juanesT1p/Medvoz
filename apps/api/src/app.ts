@@ -192,11 +192,12 @@ function normalizeHttpError(error: unknown): { statusCode: number; code: string;
   }
 
   if (error instanceof LlmError) {
-    const statusByCode = { LLM_AUTH: 502, LLM_RATE_LIMIT: 429, LLM_TIMEOUT: 504, LLM_INVALID_OUTPUT: 502 } as const;
+    const statusByCode = { LLM_AUTH: 502, LLM_RATE_LIMIT: 429, LLM_TIMEOUT: 504, LLM_UNAVAILABLE: 503, LLM_INVALID_OUTPUT: 502 } as const;
     const messages = {
       LLM_AUTH: 'No se pudo autenticar con el proveedor de IA.',
       LLM_RATE_LIMIT: 'El proveedor de IA está temporalmente limitado. Inténtalo de nuevo.',
       LLM_TIMEOUT: 'La lectura tardó demasiado. Inténtalo de nuevo.',
+      LLM_UNAVAILABLE: 'El proveedor de IA está temporalmente ocupado. Inténtalo de nuevo en unos segundos.',
       LLM_INVALID_OUTPUT: 'El proveedor de IA no devolvió una lectura válida.',
     } as const;
     return { statusCode: statusByCode[error.code], code: error.code, message: messages[error.code] };

@@ -167,7 +167,9 @@ progress { width: 100%; height: 0.65rem; accent-color: var(--color-primary); }
 .audio-options label { display: flex; align-items: center; gap: 0.45rem; }
 .audio-options select { min-height: 2.35rem; width: auto; }
 .audio-status { margin: 0; color: var(--color-amber-text); font-size: 0.76rem; font-weight: 700; }
-.audio-script { margin: 0; color: var(--color-muted); font-size: 0.78rem; line-height: 1.55; }
+.audio-transcript { color: var(--color-muted); font-size: 0.78rem; line-height: 1.55; }
+.audio-transcript summary { cursor: pointer; color: var(--color-primary-dark); font-weight: 800; }
+.audio-transcript p { margin: 0.5rem 0 0; }
 .disclaimer { margin: 0; padding: 0.75rem; border-radius: 0.55rem; color: var(--color-amber-text); background: var(--color-amber-soft); font-size: 0.76rem; font-weight: 800; line-height: 1.5; }
 .audio-element { display: none; }
 .timeline-section { display: grid; gap: 1rem; }
