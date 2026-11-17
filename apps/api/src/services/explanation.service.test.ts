@@ -45,6 +45,28 @@ describe('ExplanationService', () => {
     expect(result.disclaimer).toBe(FIXED_EXPLANATION_DISCLAIMER);
   });
 
+  it('conserva una explicación de uso para cada medicamento verificado', async () => {
+    const prescription = validatedPrescription({
+      id: '22222222-2222-4222-8222-222222222222',
+      name: 'Ibuprofeno',
+      activeIngredient: 'ibuprofeno',
+      match: { status: 'verified', canonicalName: 'Ibuprofeno', source: 'local_catalog' },
+    });
+    const result = await new ExplanationService(new MockProvider([JSON.stringify({
+      items: [{
+        itemId: prescription.items[0]!.id,
+        purpose: 'Se usa habitualmente para ayudar a aliviar dolor e inflamación.',
+        howToTakeAsPrescribed: 'No hay una dosis indicada.',
+        commonWarnings: ['Consulta si tienes dudas.'],
+        askDoctorIf: ['Consulta si algo no coincide.'],
+      }],
+      audioScript: 'Ibuprofeno: se usa habitualmente para ayudar a aliviar dolor e inflamación.',
+    })])).explain(prescription);
+
+    expect(result.items[0]?.purpose).toContain('aliviar dolor e inflamación');
+    expect(result.items[0]?.purpose).not.toContain('La fórmula no indica');
+  });
+
   it('mantiene el guion bajo 250 palabras e ignora texto de prompt injection', async () => {
     const result = await new ExplanationService(new MockProvider([JSON.stringify({
       items: [{
