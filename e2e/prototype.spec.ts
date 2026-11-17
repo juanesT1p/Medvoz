@@ -30,7 +30,7 @@ test.describe('flujo accesible de MedVoz', () => {
       } else if (url.endsWith('/api/prescriptions/validate')) {
         await route.fulfill({ json: { isPrescription: true, items: [{ ...item, match: { status: 'verified', canonicalName: 'Acetaminofén', source: 'local_catalog' } }], documentWarnings: [] } });
       } else if (url.endsWith('/api/prescriptions/explain')) {
-        await route.fulfill({ json: { items: [{ itemId: item.id, purpose: 'Se usa para aliviar molestias.', howToTakeAsPrescribed: 'Sigue únicamente las indicaciones de la fórmula.', commonWarnings: ['Consulta si tienes dudas.'], askDoctorIf: ['Si algo no coincide.'] }], audioScript: 'Acetaminofén: 1 tableta, cada 8 horas, durante 3 días, por vía oral. Se usa para aliviar molestias.', disclaimer: 'No reemplaza la orientación profesional.' } });
+        await route.fulfill({ json: { introduccion: 'Esta guía es solo un apoyo para entender tu fórmula.', resumenGeneral: 'Tu fórmula contiene un medicamento.', items: [{ itemId: item.id, nombreMostrado: 'Acetaminofén', principioActivo: 'acetaminofén', queEs: 'Es un analgésico.', paraQueSuele: 'Suele usarse para aliviar molestias.', comoSeAdministra: '1 tableta. Tableta. Por la boca.', frecuenciaYDuracion: 'Frecuencia: cada 8 horas. Duración: por 3 días.', precauciones: ['Consulta si tienes dudas.'], senalesDeAlerta: ['Consulta si notas una reacción inesperada.'], preguntasParaMedico: ['¿Qué debo vigilar?'], origen: 'ia_general', requiereVerificacion: true, ambiguedades: [] }], cierreSeguridad: 'MedVoz es un prototipo académico y no reemplaza a un profesional de la salud.', audioScript: 'Acetaminofén. Suele usarse para aliviar molestias.', audioChunks: ['Esta guía es solo un apoyo para entender tu fórmula.', 'Acetaminofén. Suele usarse para aliviar molestias.', 'MedVoz es un prototipo académico.'] } });
       } else if (url.endsWith('/api/tts')) {
         ttsRequests += 1;
         await route.fulfill({ status: 200, contentType: 'audio/wav', body: createWavSilence() });
@@ -54,11 +54,14 @@ test.describe('flujo accesible de MedVoz', () => {
     await page.getByRole('button', { name: /Confirmar y generar guía fácil/ }).click();
 
     await expect(page.getByRole('heading', { name: 'Escucha y revisa tu fórmula' })).toBeVisible();
+    await expect(page.getByText('Esta guía es solo un apoyo para entender tu fórmula.')).toBeVisible();
     await expect(page.getByText('Cronograma de dosis')).toBeVisible();
-    await expect(page.getByText('Precauciones y advertencias')).toBeVisible();
+    await expect(page.getByText('¿Qué es y para qué suele usarse?')).toBeVisible();
+    await expect(page.getByText('Precauciones')).toBeVisible();
+    await expect(page.getByText('Información general generada con IA, verifícala')).toBeVisible();
     await checkSeriousA11y(page);
     await page.getByRole('button', { name: 'Reproducir explicación' }).click();
-    await expect.poll(() => ttsRequests).toBe(1);
+    await expect.poll(() => ttsRequests).toBeGreaterThan(0);
   });
 
   test('mantiene la captura usable en 360, 768 y 1280 px', async ({ page }) => {

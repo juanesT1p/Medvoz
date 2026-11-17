@@ -50,7 +50,9 @@ La interfaz es mobile first, admite modo claro/oscuro y escala de texto A−/A+.
 - Revisión y edición manual antes de continuar.
 - Validación contra un catálogo local de medicamentos y productos nutricionales.
 - Respaldo de validación mediante RxNorm y openFDA.
-- Explicaciones estructuradas con advertencias y preguntas para consultar al profesional de salud.
+- Explicaciones estructuradas por medicamento: qué es, para qué suele usarse, aplicación, frecuencia, precauciones, señales de alerta y preguntas para el profesional.
+- Glosario determinista para abreviaturas de fórmulas colombianas (`GR`, `CC`, `SSNIV`, `IV`, `VO`, `PARA DIL`, entre otras); `SC` se marca como ambiguo y nunca se interpreta en silencio.
+- Catálogo curado de apoyo educativo para dipirona/metamizol, diclofenaco, sodio cloruro 0,9 % y tramadol. Todo el contenido nuevo queda marcado como `revisadoPor: pendiente`; un profesional debe revisarlo antes de cualquier uso real.
 - Disclaimer médico agregado por el backend.
 - **Audio** con tres fuentes: Gemini TTS, OpenAI TTS o voz del navegador como respaldo automático.
 - **Lectura correcta de unidades:** un normalizador convierte `500 mg`, `0,5 mg`, `1.000 mg` o `250 mg/5 ml` a palabras en español antes de pasar el texto al motor de voz.
@@ -157,7 +159,9 @@ TTS_API_KEY=tu_clave_de_openai
 **Cómo se lee el texto:** antes de enviarse a cualquier proveedor (y también en el respaldo del navegador), el texto pasa por `toSpokenText`, que convierte unidades, decimales y abreviaturas de posología a palabras (`0,5 mg` → "cero coma cinco miligramos"; `c/8h` → "cada 8 horas"). Si el audio cloud falla, la interfaz cambia automáticamente a la voz del navegador.
 
 > **Limitación conocida:** un valor con punto decimal y tres decimales (por ejemplo `0.125`) es ambiguo frente al separador de miles. Siempre que sea posible, la dosis viaja como campos estructurados (valor y unidad) y no como texto libre.
-El backend normaliza siempre unidades, decimales y abreviaturas de posología antes de llamar al proveedor. Si el audio cloud no está disponible, la interfaz cambia a `speechSynthesis` en español (`es-CO`, con alternativas regionales).
+El backend normaliza siempre unidades, decimales y abreviaturas de posología antes de llamar al proveedor. El guion se divide en introducción, bloques por medicamento y cierre para respetar el límite del proveedor; el reproductor los concatena en orden. Si el audio cloud no está disponible, la interfaz cambia a `speechSynthesis` en español (`es-CO`, con alternativas regionales).
+
+La información del catálogo es educativa y no reemplaza una revisión clínica. Las indicaciones, dosis, frecuencia, duración y vía que muestra MedVoz salen únicamente de los datos confirmados de la fórmula. Si un producto no se identifica con suficiente confianza, se muestra un mensaje individual para confirmarlo.
 
 ## Endpoints principales
 
@@ -201,9 +205,6 @@ pnpm llm:check
 
 ## Próximos pasos
 
-1. **Guía más útil:** explicar en lenguaje sencillo qué es cada medicamento y para qué suele usarse, con precauciones y preguntas para el médico, evitando el texto genérico de respaldo repetido.
-2. **Glosario de abreviaturas** de fórmulas colombianas (`GR`, `CC`, `SSN IV`, `PARA DIL`), marcando como "confirmar" las que sean ambiguas (por ejemplo `SC` o "24 Horas").
-3. **Catálogo con información general curada** y revisión por un profesional de la salud antes de cualquier uso real.
-4. Mejorar la validación de productos nutricionales y medicamentos regionales.
-5. Añadir pruebas e2e con la API real en modo controlado.
-6. Preparar despliegue y gestión segura de secretos.
+1. Revisar clínicamente el contenido curado (`revisadoPor: pendiente`).
+2. Ampliar el catálogo con fuentes regionales verificadas.
+3. Preparar despliegue y gestión segura de secretos.
