@@ -1,4 +1,5 @@
 import type { ExternalDrugMatch, DrugFallback } from './types.js';
+import { normalizeDrugName } from './normalize.js';
 
 type RxNormResponse = {
   approximateGroup?: { candidate?: Array<{ rxcui?: string; rank?: string; name?: string; score?: string }> };
@@ -18,11 +19,18 @@ export class RxNormClient implements DrugFallback {
       const candidate = payload.approximateGroup?.candidate?.[0];
       if (!candidate?.name) return null;
       const score = candidate.score ? Math.min(Number(candidate.score) / 100, 1) : 0.8;
+      if (score < 0.8 || !hasPlausibleNameOverlap(name, candidate.name)) return null;
       return { canonicalName: candidate.name, score, source: 'rxnorm' };
     } catch {
       return null;
     }
   }
+}
+
+function hasPlausibleNameOverlap(query: string, candidate: string): boolean {
+  const queryTokens = new Set(normalizeDrugName(query).split(' ').filter((token) => token.length > 2));
+  const candidateTokens = normalizeDrugName(candidate).split(' ').filter((token) => token.length > 2);
+  return candidateTokens.some((token) => queryTokens.has(token)) || normalizeDrugName(candidate).includes(normalizeDrugName(query));
 }
 
 async function fetchWithTimeout(fetchImpl: typeof fetch, url: string, timeoutMs: number): Promise<Response> {

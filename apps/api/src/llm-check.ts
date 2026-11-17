@@ -1,4 +1,4 @@
-import { ExplanationDraftSchema, ExtractedPrescriptionDraftSchema } from '@medvoz/shared';
+import { ExtractedPrescriptionDraftSchema, GeneralMedicationDraftSchema } from '@medvoz/shared';
 import { env } from './config/env.js';
 import { createLlmProvider } from './providers/llm/factory.js';
 
@@ -8,8 +8,8 @@ const provider = createLlmProvider(env);
 await provider.generateStructured({
   task: 'explain',
   system: 'Devuelve únicamente una explicación breve válida en JSON. Esta es una prueba de conectividad.',
-  userText: 'Responde con items=[] y audioScript="Prueba de conectividad.".',
-  schema: ExplanationDraftSchema,
+  userText: 'Responde con una explicación general breve y segura para el medicamento validado.',
+  schema: GeneralMedicationDraftSchema,
   maxOutputTokens: 256,
 });
 

@@ -94,16 +94,13 @@ describe('POST /api/prescriptions/validate', () => {
 });
 
 describe('POST /api/prescriptions/explain', () => {
-  it('devuelve una explicación estructurada con disclaimer fijo', async () => {
+  it('devuelve una explicación estructurada con cierre fijo', async () => {
     const provider = new MockProvider([JSON.stringify({
-      items: [{
-        itemId: '11111111-1111-4111-8111-111111111111',
-        purpose: 'Se usa para aliviar molestias.',
-        howToTakeAsPrescribed: 'Toma 50 tabletas.',
-        commonWarnings: ['Consulta si tienes dudas.'],
-        askDoctorIf: ['Consulta si algo no coincide.'],
-      }],
-      audioScript: 'Toma 50 tabletas.',
+      queEs: 'Es un analgésico.',
+      paraQueSuele: 'Suele usarse para aliviar molestias.',
+      precauciones: ['Confirma las precauciones con un profesional.'],
+      senalesDeAlerta: ['Consulta si notas una reacción inesperada.'],
+      preguntasParaMedico: ['¿Qué debo vigilar?'],
     })]);
     const response = await request(
       createApp({ CORS_ORIGIN: 'http://localhost:5173', LLM_PROVIDER: 'mock', LLM_MODEL: 'mock' }, { llmProvider: provider }),
@@ -133,8 +130,9 @@ describe('POST /api/prescriptions/explain', () => {
       });
 
     expect(response.status).toBe(200);
-    expect(response.body.disclaimer).toContain('no reemplaza');
-    expect(response.body.items[0].howToTakeAsPrescribed).not.toContain('50');
+    expect(response.body.introduccion).toContain('apoyo para entender');
+    expect(response.body.cierreSeguridad).toContain('no reemplaza');
+    expect(response.body.items[0].frecuenciaYDuracion).toContain('La fórmula no indica');
     expect(response.body.audioScript).not.toContain('50 tabletas');
   });
 });

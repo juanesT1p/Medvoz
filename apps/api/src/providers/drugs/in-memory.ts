@@ -1,10 +1,11 @@
 import { normalizeDrugName } from './normalize.js';
-import type { DrugCatalog, DrugCatalogMatch } from './types.js';
+import type { DrugCatalog, DrugCatalogMatch, DrugKnowledge } from './types.js';
 
 export type InMemoryDrug = {
   commercialName: string;
   activeIngredient: string;
   synonyms?: string[];
+  knowledge?: DrugKnowledge;
 };
 
 export class InMemoryDrugCatalog implements DrugCatalog {
@@ -19,7 +20,7 @@ export class InMemoryDrugCatalog implements DrugCatalog {
       const exact = candidates.includes(normalized);
       const score = exact ? 1 : Math.max(...candidates.map((candidate) => similarity(normalized, candidate)));
       if (best === null || score > best.score) {
-        best = { commercialName: drug.commercialName, activeIngredient: drug.activeIngredient, score, exact };
+        best = { commercialName: drug.commercialName, activeIngredient: drug.activeIngredient, score, exact, knowledge: drug.knowledge ?? null };
       }
     }
 

@@ -26,14 +26,11 @@ const defaultResponse = JSON.stringify({
 });
 
 const defaultExplanationResponse = JSON.stringify({
-  items: [{
-    itemId: '00000000-0000-4000-8000-000000000000',
-    purpose: 'Esta es una explicación de prueba.',
-    howToTakeAsPrescribed: 'La fórmula no indica cómo tomar o usar este medicamento.',
-    commonWarnings: ['Consulta a un profesional si tienes dudas.'],
-    askDoctorIf: ['Consulta al médico si algo no coincide.'],
-  }],
-  audioScript: 'Explicación de prueba. Consulta a tu médico o farmacéutico.',
+  queEs: 'Es un medicamento de prueba.',
+  paraQueSuele: 'Suele usarse para una situación que debe confirmar un profesional.',
+  precauciones: ['Confirma las precauciones con un profesional.'],
+  senalesDeAlerta: ['Consulta si notas una reacción inesperada.'],
+  preguntasParaMedico: ['¿Qué debo vigilar con este medicamento?'],
 });
 
 export class MockProvider extends StructuredLlmProvider {

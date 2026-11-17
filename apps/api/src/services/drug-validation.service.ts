@@ -23,6 +23,7 @@ export class DrugValidationService {
           status: localMatch.exact ? ('verified' as const) : ('probable' as const),
           canonicalName: localMatch.commercialName,
           source: 'local_catalog' as const,
+          ...(localMatch.knowledge ? { knowledge: localMatch.knowledge } : {}),
         },
       };
     }

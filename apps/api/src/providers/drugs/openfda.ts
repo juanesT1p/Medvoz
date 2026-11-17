@@ -1,4 +1,5 @@
 import type { ExternalDrugMatch, DrugFallback } from './types.js';
+import { normalizeDrugName } from './normalize.js';
 
 type OpenFdaResponse = {
   results?: Array<{
@@ -20,11 +21,18 @@ export class OpenFdaClient implements DrugFallback {
       const payload = (await response.json()) as OpenFdaResponse;
       const result = payload.results?.[0];
       const canonicalName = result?.openfda?.generic_name?.[0] ?? result?.active_ingredient?.[0] ?? result?.openfda?.brand_name?.[0];
-      return canonicalName ? { canonicalName, score: 0.85, source: 'openfda' } : null;
+      if (!canonicalName || !hasPlausibleNameOverlap(name, canonicalName)) return null;
+      return { canonicalName, score: 0.85, source: 'openfda' };
     } catch {
       return null;
     }
   }
+}
+
+function hasPlausibleNameOverlap(query: string, candidate: string): boolean {
+  const queryTokens = new Set(normalizeDrugName(query).split(' ').filter((token) => token.length > 2));
+  const candidateTokens = normalizeDrugName(candidate).split(' ').filter((token) => token.length > 2);
+  return candidateTokens.some((token) => queryTokens.has(token)) || normalizeDrugName(candidate).includes(normalizeDrugName(query));
 }
 
 async function fetchWithTimeout(fetchImpl: typeof fetch, url: string, timeoutMs: number): Promise<Response> {

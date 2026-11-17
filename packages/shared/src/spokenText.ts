@@ -53,7 +53,31 @@ export function toSpokenText(input: string): string {
     .replace(/\bc\s*\/\s*d\b/gi, 'cada día')
     .replace(/\bVO\b/gi, 'por vía oral');
 
+  output = output.replace(/\b(\d+(?:[.,]\d+)?)\s+(miligramo|miligramos|microgramo|microgramos|gramo|gramos|kilogramo|kilogramos|mililitro|mililitros|litro|litros)\b/gi, (_match, quantity: string, unit: string) => {
+    const singular = isExactlyOne(quantity);
+    const normalizedUnit = unit.toLowerCase();
+    const unitWords: Record<string, SpokenUnit> = {
+      miligramo: units.mg!,
+      miligramos: units.mg!,
+      microgramo: units.mcg!,
+      microgramos: units.mcg!,
+      gramo: units.g!,
+      gramos: units.g!,
+      kilogramo: units.kg!,
+      kilogramos: units.kg!,
+      mililitro: units.ml!,
+      mililitros: units.ml!,
+      litro: units.l!,
+      litros: units.l!,
+    };
+    return `${numberToSpanish(quantity)} ${singular ? unitWords[normalizedUnit]?.singular ?? unit : unitWords[normalizedUnit]?.plural ?? unit}`;
+  });
+
   return output;
+}
+
+export function toSpokenScheduleNumbers(input: string): string {
+  return input.replace(/\b\d+(?:[.,]\d+)?\b/g, (number) => numberToSpanish(number));
 }
 
 function unitToSpanish(rawUnit: string, quantity: string): string {

@@ -20,15 +20,50 @@ try {
       .split(';')
       .map((synonym) => normalizeDrugName(synonym))
       .filter(Boolean);
+    const nombresComunes = splitList(row.nombresComunes ?? row.synonyms ?? commercialName);
+    const principioActivo = row.principioActivo?.trim() || activeIngredient;
     await prisma.drug.upsert({
       where: { normalizedName: normalizeDrugName(commercialName) },
-      create: { commercialName, activeIngredient, normalizedName: normalizeDrugName(commercialName), synonyms },
-      update: { commercialName, activeIngredient, synonyms },
+      create: {
+        commercialName,
+        activeIngredient,
+        normalizedName: normalizeDrugName(commercialName),
+        synonyms,
+        principioActivo,
+        nombresComunes,
+        queEs: row.queEs?.trim() || null,
+        paraQueSuele: row.paraQueSuele?.trim() || null,
+        comoActua: row.comoActua?.trim() || null,
+        precauciones: splitList(row.precauciones ?? ''),
+        senalesDeAlerta: splitList(row.senalesDeAlerta ?? ''),
+        preguntasParaMedico: splitList(row.preguntasParaMedico ?? ''),
+        fuente: row.fuente?.trim() || null,
+        revisadoPor: row.revisadoPor?.trim() || 'pendiente',
+      },
+      update: {
+        commercialName,
+        activeIngredient,
+        synonyms,
+        principioActivo,
+        nombresComunes,
+        queEs: row.queEs?.trim() || null,
+        paraQueSuele: row.paraQueSuele?.trim() || null,
+        comoActua: row.comoActua?.trim() || null,
+        precauciones: splitList(row.precauciones ?? ''),
+        senalesDeAlerta: splitList(row.senalesDeAlerta ?? ''),
+        preguntasParaMedico: splitList(row.preguntasParaMedico ?? ''),
+        fuente: row.fuente?.trim() || null,
+        revisadoPor: row.revisadoPor?.trim() || 'pendiente',
+      },
     });
   }
   console.log(`Catálogo cargado: ${rows.length} filas procesadas.`);
 } finally {
   await prisma.$disconnect();
+}
+
+function splitList(value: string): string[] {
+  return value.split(';').map((part) => part.trim()).filter(Boolean);
 }
 
 function parseCsv(input: string): Array<Record<string, string>> {

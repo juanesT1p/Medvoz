@@ -13,6 +13,16 @@ model Drug {
   activeIngredient String
   normalizedName  String   @unique
   synonyms        String[]
+  principioActivo String   @default("")
+  nombresComunes  String[] @default([])
+  queEs           String?
+  paraQueSuele    String?
+  comoActua      String?
+  precauciones    String[] @default([])
+  senalesDeAlerta String[] @default([])
+  preguntasParaMedico String[] @default([])
+  fuente          String?
+  revisadoPor     String   @default("pendiente")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

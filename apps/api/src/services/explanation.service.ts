@@ -1,122 +1,192 @@
 import {
-  ExplanationDraftSchema,
+  GeneralMedicationDraftSchema,
   ExplanationSchema,
+  interpretFrequency,
+  interpretInstruction,
+  toSpokenText,
+  toSpokenScheduleNumbers,
   type Explanation,
   type ExplanationItem,
+  type GeneralMedicationDraft,
   type ValidatedItem,
   type ValidatedPrescription,
 } from '@medvoz/shared';
-import { FIXED_EXPLANATION_DISCLAIMER, explainPrescriptionSystemPrompt } from '../prompts/explain.js';
+import {
+  FIXED_EXPLANATION_CLOSING,
+  FIXED_EXPLANATION_INTRODUCTION,
+  FIXED_INJECTABLE_NOTE,
+  generalMedicationSystemPrompt,
+} from '../prompts/explain.js';
 import type { LlmProvider } from '../providers/llm/types.js';
 
 export class ExplanationService {
   constructor(private readonly llmProvider: LlmProvider) {}
 
   async explain(prescription: ValidatedPrescription): Promise<Explanation> {
-    const response = await this.llmProvider.generateStructured({
-      task: 'explain',
-      system: explainPrescriptionSystemPrompt,
-      userText: JSON.stringify({
-        isPrescription: prescription.isPrescription,
-        items: prescription.items.map(({ id, rawText, name, activeIngredient, strength, form, dose, frequency, duration, route, instructions, dosisValor, dosisUnidad, match }) => ({
-          id,
-          rawText,
-          name,
-          activeIngredient,
-          strength,
-          form,
-          dose,
-          frequency,
-          duration,
-          route,
-          instructions,
-          match,
-          dosisValor: dosisValor ?? null,
-          dosisUnidad: dosisUnidad ?? null,
-        })),
-        documentWarnings: prescription.documentWarnings,
-      }),
-      schema: ExplanationDraftSchema,
-      temperature: 0.2,
-      maxOutputTokens: 1_500,
-    });
+    const generated = await Promise.all(prescription.items.map((item) => this.generateGeneralInformation(item)));
+    const items = prescription.items.map((item, index) => buildExplanationItem(item, generated[index]));
+    const hasInjectable = prescription.items.some((item) => isInjectableRoute(item.route));
+    const audioScript = buildAudioScript(items, hasInjectable);
 
-    const items = prescription.items.map((item, index) => sanitizeItem(response.data.items[index], item));
-    const audioScript = buildSafeAudioScript(prescription.items, items);
-    return ExplanationSchema.parse({ items, audioScript, disclaimer: FIXED_EXPLANATION_DISCLAIMER });
+    return ExplanationSchema.parse({
+      introduccion: FIXED_EXPLANATION_INTRODUCTION,
+      resumenGeneral: buildSummary(prescription.items.length),
+      items,
+      cierreSeguridad: FIXED_EXPLANATION_CLOSING,
+      ...(hasInjectable ? { notaInyectables: FIXED_INJECTABLE_NOTE } : {}),
+      audioScript,
+    });
+  }
+
+  private async generateGeneralInformation(item: ValidatedItem): Promise<GeneralMedicationDraft | null> {
+    if (item.match.knowledge || item.match.status === 'not_found' || !item.match.canonicalName) return null;
+
+    try {
+      const response = await this.llmProvider.generateStructured({
+        task: 'explain',
+        system: generalMedicationSystemPrompt,
+        userText: JSON.stringify({
+          nombre: item.match.canonicalName,
+          principioActivo: item.activeIngredient,
+          fuenteValidacion: item.match.source,
+        }),
+        schema: GeneralMedicationDraftSchema,
+        temperature: 0.1,
+        maxOutputTokens: 700,
+      });
+      return isSafeGeneralDraft(response.data) ? response.data : null;
+    } catch {
+      return null;
+    }
   }
 }
 
-function sanitizeItem(generated: ExplanationItem | undefined, prescriptionItem: ValidatedItem): ExplanationItem {
-  const safePurpose = prescriptionItem.match.status === 'verified' && generated && isGeneratedTextSafe(generated.purpose, prescriptionItem)
-    ? generated.purpose
-    : prescriptionItem.match.status === 'verified'
-      ? 'La fórmula no indica para qué se usa este medicamento.'
-      : 'El nombre de este medicamento debe confirmarse con un médico o farmacéutico antes de explicar para qué se usa.';
-  const safeWarnings = (generated?.commonWarnings ?? []).filter((warning) => isGeneratedTextSafe(warning, prescriptionItem)).slice(0, 5);
-  const safeQuestions = (generated?.askDoctorIf ?? []).filter((question) => isGeneratedTextSafe(question, prescriptionItem)).slice(0, 5);
-  const howToTakeAsPrescribed = buildPrescriptionInstructions(prescriptionItem);
+export const FIXED_EXPLANATION_DISCLAIMER = FIXED_EXPLANATION_CLOSING;
+
+function buildExplanationItem(item: ValidatedItem, generated: GeneralMedicationDraft | null | undefined): ExplanationItem {
+  const administration = buildAdministration(item);
+  const timing = buildFrequencyAndDuration(item);
+  const ambiguedades = [...new Set([...administration.ambiguedades, ...timing.ambiguedades])];
+  const knowledge = item.match.knowledge;
+
+  if (knowledge) {
+    return {
+      itemId: item.id,
+      nombreMostrado: item.match.canonicalName ?? item.name,
+      principioActivo: knowledge.principioActivo,
+      queEs: knowledge.queEs,
+      paraQueSuele: knowledge.paraQueSuele,
+      comoSeAdministra: administration.legible,
+      frecuenciaYDuracion: timing.legible,
+      precauciones: knowledge.precauciones.length > 0 ? knowledge.precauciones : ['Confirma las precauciones con un profesional de la salud.'],
+      senalesDeAlerta: knowledge.senalesDeAlerta.length > 0 ? knowledge.senalesDeAlerta : ['Consulta si notas una reacción inesperada.'],
+      preguntasParaMedico: knowledge.preguntasParaMedico.length > 0 ? knowledge.preguntasParaMedico : ['¿Qué debo vigilar con este medicamento?'],
+      origen: 'catalogo',
+      requiereVerificacion: knowledge.revisadoPor === 'pendiente' || ambiguedades.length > 0,
+      ambiguedades,
+    };
+  }
+
+  if (generated) {
+    return {
+      itemId: item.id,
+      nombreMostrado: item.match.canonicalName ?? item.name,
+      principioActivo: item.activeIngredient,
+      queEs: generated.queEs,
+      paraQueSuele: generated.paraQueSuele,
+      comoSeAdministra: administration.legible,
+      frecuenciaYDuracion: timing.legible,
+      precauciones: generated.precauciones,
+      senalesDeAlerta: generated.senalesDeAlerta,
+      preguntasParaMedico: generated.preguntasParaMedico,
+      origen: 'ia_general',
+      requiereVerificacion: true,
+      ambiguedades,
+    };
+  }
 
   return {
-    itemId: prescriptionItem.id,
-    purpose: safePurpose,
-    howToTakeAsPrescribed,
-    commonWarnings: safeWarnings.length > 0 ? safeWarnings : ['Si tienes dudas sobre esta fórmula, consulta a tu médico o farmacéutico.'],
-    askDoctorIf: safeQuestions.length > 0 ? safeQuestions : ['Consulta al médico o farmacéutico si algo de la fórmula no coincide con lo que te indicaron.'],
+    itemId: item.id,
+    nombreMostrado: item.name,
+    principioActivo: item.activeIngredient,
+    queEs: 'No pudimos reconocer este medicamento con certeza.',
+    paraQueSuele: 'Revisa el nombre en tu fórmula y pregunta a tu médico o farmacéutico para qué se usa.',
+    comoSeAdministra: administration.legible,
+    frecuenciaYDuracion: timing.legible,
+    precauciones: ['No es posible ofrecer precauciones específicas sin confirmar el medicamento.'],
+    senalesDeAlerta: ['Consulta a un profesional si recibes una indicación que no coincide con tu fórmula.'],
+    preguntasParaMedico: ['¿Puedes confirmar el nombre y para qué se usa este medicamento?'],
+    origen: 'no_identificado',
+    requiereVerificacion: true,
+    ambiguedades,
   };
 }
 
-function buildPrescriptionInstructions(item: ValidatedItem): string {
-  const facts = [item.dose, item.frequency, item.duration, item.route, item.instructions]
-    .filter((fact): fact is string => Boolean(fact))
-    .filter((fact) => !containsPromptInjection(fact));
-  return facts.length > 0 ? `Sigue únicamente estas indicaciones de la fórmula: ${facts.join('; ')}.` : 'La fórmula no indica cómo tomar o usar este medicamento.';
+function buildAdministration(item: ValidatedItem): { legible: string; ambiguedades: string[] } {
+  const facts: string[] = [];
+  if (item.dose && !containsPromptInjection(item.dose)) facts.push(interpretInstruction(item.dose).legible);
+  if (item.form) facts.push(item.form.toLowerCase());
+  if (item.route) facts.push(routeToPlainSpanish(item.route));
+  if (item.instructions && !containsPromptInjection(item.instructions)) facts.push(interpretInstruction(item.instructions).legible);
+
+  const interpretedInstructions = item.instructions && !containsPromptInjection(item.instructions) ? interpretInstruction(item.instructions) : { legible: '', ambiguedades: [] };
+  return {
+    legible: facts.length > 0 ? `${facts.join('. ')}.` : 'La fórmula no indica cómo se administra. Confirma este dato con tu médico o farmacéutico.',
+    ambiguedades: interpretedInstructions.ambiguedades,
+  };
 }
 
-function buildSafeAudioScript(prescriptionItems: ValidatedItem[], explanationItems: ExplanationItem[]): string {
-  const sections = explanationItems.map((explanationItem, index) => {
-    const prescriptionItem = prescriptionItems[index];
-    return prescriptionItem
-      ? `${prescriptionItem.name}: ${buildAudioPrescriptionSection(prescriptionItem)} ${explanationItem.purpose}`
-      : explanationItem.howToTakeAsPrescribed;
+function buildFrequencyAndDuration(item: ValidatedItem): { legible: string; ambiguedades: string[] } {
+  const frequency = item.frequency && !containsPromptInjection(item.frequency) ? interpretFrequency(item.frequency, 'frequency') : { legible: '', ambiguedades: [] };
+  const duration = item.duration && !containsPromptInjection(item.duration) ? interpretFrequency(item.duration, 'duration') : { legible: '', ambiguedades: [] };
+  const parts = [
+    frequency.legible ? `Frecuencia: ${frequency.legible}` : null,
+    item.duration ? `Duración: ${duration.legible}` : null,
+  ].filter((part): part is string => Boolean(part));
+  return {
+    legible: parts.length > 0 ? `${parts.join('. ')}.` : 'La fórmula no indica frecuencia ni duración. Confirma estos datos con tu médico o farmacéutico.',
+    ambiguedades: [...frequency.ambiguedades, ...duration.ambiguedades],
+  };
+}
+
+function buildAudioScript(items: ExplanationItem[], hasInjectable: boolean): string {
+  const blocks = items.map((item) => {
+    const verification = item.requiereVerificacion ? ' Pide a tu médico o farmacéutico que confirme este dato.' : '';
+    const administration = item.ambiguedades.length > 0 ? 'La fórmula contiene un dato de administración que debe confirmarse.' : item.comoSeAdministra;
+    return `${item.nombreMostrado}. Suele usarse para: ${item.paraQueSuele}. ${administration} ${item.frecuenciaYDuracion} Precaución: ${item.precauciones[0] ?? 'confirma las precauciones con un profesional.'}${verification}`;
   });
-  const script = `Esta es una explicación de tu fórmula. ${sections.join(' ')} Si algo no coincide o tienes dudas, consulta a tu médico o farmacéutico.`;
-  return script.split(/\s+/).slice(0, 250).join(' ');
+  const injectableNote = hasInjectable ? ` ${FIXED_INJECTABLE_NOTE}` : '';
+  return toSpokenScheduleNumbers(toSpokenText(`${FIXED_EXPLANATION_INTRODUCTION} ${blocks.join(' ')}${injectableNote} ${FIXED_EXPLANATION_CLOSING}`))
+    .split(/\s+/)
+    .slice(0, 250)
+    .join(' ');
 }
 
-function buildAudioPrescriptionSection(item: ValidatedItem): string {
-  const structuredDose = getStructuredDose(item);
-  const dose = structuredDose ? `${formatDoseValue(structuredDose.value)} ${structuredDose.unit}` : item.dose;
-  const parts = [dose, item.frequency, item.duration ? `durante ${item.duration.replace(/^por\s+/i, '')}` : null, item.route ? `por vía ${item.route}` : null, item.instructions]
-    .filter((fact): fact is string => Boolean(fact))
-    .filter((fact) => !containsPromptInjection(fact));
-  return parts.length > 0 ? `${parts.join(', ')}.` : 'La fórmula no indica dosis ni frecuencia.';
+function buildSummary(count: number): string {
+  const noun = count === 1 ? 'medicamento o producto' : 'medicamentos o productos';
+  return `Tu fórmula contiene ${count} ${noun}. Esta guía separa la información general de las instrucciones que aparecen en la fórmula. Revisa cada dato y consulta a un profesional antes de tomar decisiones sobre tu tratamiento.`;
 }
 
-function getStructuredDose(item: ValidatedItem): { value: number; unit: string } | null {
-  if (typeof item.dosisValor === 'number' && Number.isFinite(item.dosisValor) && item.dosisUnidad) {
-    return { value: item.dosisValor, unit: item.dosisUnidad };
-  }
-
-  const match = item.dose?.trim().match(/^(\d+(?:[.,]\d+)?)\s+([^,;]+)$/);
-  if (!match) return null;
-  const numericValue = Number(match[1]?.replace(',', '.'));
-  const unit = match[2]?.trim();
-  return Number.isFinite(numericValue) && unit ? { value: numericValue, unit } : null;
+function routeToPlainSpanish(route: string): string {
+  const normalized = route.trim().toLowerCase();
+  if (/endovenosa|intravenosa|\bev\b|\biv\b/.test(normalized)) return 'por la vena';
+  if (/intramuscular|\bim\b/.test(normalized)) return 'en el músculo';
+  if (/subcutánea|subcutanea|\bsc\b/.test(normalized)) return 'por una vía que requiere confirmación';
+  if (/oral|boca|\bvo\b/.test(normalized)) return 'por la boca';
+  return route;
 }
 
-function formatDoseValue(value: number): string {
-  return String(value).replace('.', ',');
+function isInjectableRoute(route: string | null): boolean {
+  return Boolean(route && /endovenosa|intravenosa|inyectable|\bev\b|\biv\b|intramuscular|\bim\b|subcutánea|subcutanea|\bsc\b/i.test(route));
 }
 
-function hasOnlyPrescriptionNumbers(text: string, item: ValidatedItem): boolean {
-  const generatedNumbers = text.match(/\b\d+(?:[.,]\d+)?\b/g) ?? [];
-  const source = [item.rawText, item.strength, item.dose, item.frequency, item.duration, item.instructions].filter(Boolean).join(' ');
-  return generatedNumbers.every((number) => source.includes(number));
+function isSafeGeneralDraft(draft: GeneralMedicationDraft): boolean {
+  return [draft.queEs, draft.paraQueSuele, ...draft.precauciones, ...draft.senalesDeAlerta, ...draft.preguntasParaMedico]
+    .every((text) => !containsUnsafeInstruction(text) && !/\b\d+(?:[.,]\d+)?\b/.test(text));
 }
 
-function isGeneratedTextSafe(text: string, item: ValidatedItem): boolean {
-  return !containsPromptInjection(text) && hasOnlyPrescriptionNumbers(text, item);
+function containsUnsafeInstruction(text: string): boolean {
+  return /\b(?:puedes|puede|debes|debe|aumenta|aumente|disminuye|disminuya|suspende|suspenda|combina|combine|inicia|inicie)\s+(?:tomar\w*|usar\w*|la dosis|el tratamiento|medicamentos?)\b|\b(?:toma|tome)\s+\d|\b(?:cambia|cambie)\s+(?:la dosis|el tratamiento)\b/i.test(text);
 }
 
 function containsPromptInjection(text: string): boolean {

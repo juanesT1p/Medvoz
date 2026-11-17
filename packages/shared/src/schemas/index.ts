@@ -41,6 +41,18 @@ export const DrugMatchSchema = z.object({
   status: z.enum(['verified', 'probable', 'not_found']),
   canonicalName: z.string().trim().min(1).nullable(),
   source: z.enum(['local_catalog', 'rxnorm', 'openfda']).nullable(),
+  knowledge: z.object({
+    principioActivo: nullableText,
+    nombresComunes: z.array(z.string().trim().min(1)),
+    queEs: z.string().trim().min(1),
+    paraQueSuele: z.string().trim().min(1),
+    comoActua: nullableText,
+    precauciones: z.array(z.string().trim().min(1)),
+    senalesDeAlerta: z.array(z.string().trim().min(1)),
+    preguntasParaMedico: z.array(z.string().trim().min(1)),
+    fuente: z.string().url(),
+    revisadoPor: z.string().trim().min(1),
+  }).nullable().optional(),
 });
 
 export const ValidatedItemSchema = ExtractedItemSchema.extend({
@@ -59,24 +71,45 @@ export type ValidatedPrescription = z.infer<typeof ValidatedPrescriptionSchema>;
 
 export const ExplanationItemSchema = z.object({
   itemId: z.string().uuid(),
-  purpose: z.string().trim().min(1),
-  howToTakeAsPrescribed: z.string().trim().min(1),
-  commonWarnings: z.array(z.string().trim().min(1)),
-  askDoctorIf: z.array(z.string().trim().min(1)).min(1),
+  nombreMostrado: z.string().trim().min(1),
+  principioActivo: nullableText.optional(),
+  queEs: z.string().trim().min(1),
+  paraQueSuele: z.string().trim().min(1),
+  comoSeAdministra: z.string().trim().min(1),
+  frecuenciaYDuracion: z.string().trim().min(1),
+  precauciones: z.array(z.string().trim().min(1)).min(1),
+  senalesDeAlerta: z.array(z.string().trim().min(1)).min(1),
+  preguntasParaMedico: z.array(z.string().trim().min(1)).min(1),
+  origen: z.enum(['catalogo', 'ia_general', 'no_identificado']),
+  requiereVerificacion: z.boolean(),
+  ambiguedades: z.array(z.string().trim().min(1)),
 });
 
 export const ExplanationDraftSchema = z.object({
+  resumenGeneral: z.string().trim().min(1),
   items: z.array(ExplanationItemSchema),
-  audioScript: z.string().trim().min(1),
 });
 
 export const ExplanationSchema = ExplanationDraftSchema.extend({
-  disclaimer: z.string().trim().min(1),
+  introduccion: z.string().trim().min(1),
+  cierreSeguridad: z.string().trim().min(1),
+  notaInyectables: z.string().trim().min(1).optional(),
+  audioScript: z.string().trim().min(1),
 });
 
 export type ExplanationItem = z.infer<typeof ExplanationItemSchema>;
 export type ExplanationDraft = z.infer<typeof ExplanationDraftSchema>;
 export type Explanation = z.infer<typeof ExplanationSchema>;
+
+export const GeneralMedicationDraftSchema = z.object({
+  queEs: z.string().trim().min(1),
+  paraQueSuele: z.string().trim().min(1),
+  precauciones: z.array(z.string().trim().min(1)).min(1),
+  senalesDeAlerta: z.array(z.string().trim().min(1)).min(1),
+  preguntasParaMedico: z.array(z.string().trim().min(1)).min(1),
+});
+
+export type GeneralMedicationDraft = z.infer<typeof GeneralMedicationDraftSchema>;
 
 export const HealthResponseSchema = z.object({
   status: z.literal('ok'),
