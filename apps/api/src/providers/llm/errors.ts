@@ -1,4 +1,4 @@
-export type LlmErrorCode = 'LLM_AUTH' | 'LLM_RATE_LIMIT' | 'LLM_TIMEOUT' | 'LLM_INVALID_OUTPUT';
+export type LlmErrorCode = 'LLM_AUTH' | 'LLM_RATE_LIMIT' | 'LLM_TIMEOUT' | 'LLM_UNAVAILABLE' | 'LLM_INVALID_OUTPUT';
 
 export class LlmError extends Error {
   constructor(
@@ -35,6 +35,12 @@ export class LlmInvalidOutputError extends LlmError {
   }
 }
 
+export class LlmUnavailableError extends LlmError {
+  constructor(message = 'El proveedor de IA no está disponible temporalmente.', options?: ErrorOptions) {
+    super(message, 'LLM_UNAVAILABLE', options);
+  }
+}
+
 export function normalizeLlmError(error: unknown): LlmError {
   if (error instanceof LlmError) return error;
 
@@ -47,6 +53,10 @@ export function normalizeLlmError(error: unknown): LlmError {
 
   if (status === 429 || /rate limit|too many requests|resource exhausted/i.test(message)) {
     return new LlmRateLimitError(undefined, { cause: error });
+  }
+
+  if ((status !== undefined && status >= 500) || /unavailable|high demand|temporarily unavailable|overloaded/i.test(message)) {
+    return new LlmUnavailableError(undefined, { cause: error });
   }
 
   if (error instanceof DOMException && error.name === 'AbortError') {
