@@ -154,7 +154,7 @@ function buildAudioChunks(items: ExplanationItem[], hasInjectable: boolean): str
   const blocks = items.map((item) => {
     const verification = item.requiereVerificacion ? ' Pide a tu médico o farmacéutico que confirme este dato.' : '';
     const administration = item.ambiguedades.length > 0 ? 'La fórmula contiene un dato de administración que debe confirmarse.' : item.comoSeAdministra;
-    return `${item.nombreMostrado}. Suele usarse para: ${item.paraQueSuele}. ${administration} ${item.frecuenciaYDuracion} Precaución: ${item.precauciones[0] ?? 'confirma las precauciones con un profesional.'}${verification}`;
+    return `${item.nombreMostrado}. Para qué suele usarse: ${item.paraQueSuele}. ${administration} ${item.frecuenciaYDuracion} Precaución: ${item.precauciones[0] ?? 'confirma las precauciones con un profesional.'}${verification}`;
   });
   const injectableNote = hasInjectable ? ` ${FIXED_INJECTABLE_NOTE}` : '';
   return [FIXED_EXPLANATION_INTRODUCTION, ...blocks, `${injectableNote} ${FIXED_EXPLANATION_CLOSING}`]
